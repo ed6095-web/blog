@@ -1,160 +1,231 @@
-// src/pages/index.jsx
-import { useEffect, useRef, useState } from "react";
-import { collection, query, orderBy, limit, getDocs, startAfter } from "firebase/firestore";
-import { db } from "../lib/firebase";
-import PostCard from "../components/PostCard";
-import Navbar from "../components/Navbar";
-import Footer from "../components/Footer";
+import { useState, useEffect, useCallback } from 'react';
+import Head from 'next/head';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  collection,
+  query,
+  orderBy,
+  limit,
+  getDocs,
+  startAfter,
+  where,
+} from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import Navbar from '../components/Navbar';
+import HeroSection from '../components/HeroSection';
+import PostCard from '../components/PostCard';
+import SkeletonCard from '../components/SkeletonCard';
+import Footer from '../components/Footer';
+import { AdjustmentsHorizontalIcon, FireIcon, ClockIcon, SparklesIcon } from '@heroicons/react/24/outline';
 
-const PAGE_SIZE = 6;
+const CATEGORIES = ['All', 'Technology', 'Design', 'Culture', 'Health', 'Science', 'Startups', 'Mental Health'];
+const SORT_OPTIONS = [
+  { label: 'Trending', icon: FireIcon },
+  { label: 'Latest', icon: ClockIcon },
+  { label: 'Featured', icon: SparklesIcon },
+];
+
+const PAGE_SIZE = 9;
 
 export default function HomePage() {
-  const [posts, setPosts] = useState([]);
-  const [lastDoc, setLastDoc] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [fetchingMore, setFetchingMore] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const loaderRef = useRef();
+  const [posts, setPosts]             = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [lastDoc, setLastDoc]         = useState(null);
+  const [hasMore, setHasMore]         = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [category, setCategory]       = useState('All');
+  const [sortBy, setSortBy]           = useState('Trending');
 
-  useEffect(() => {
-    fetchInitialPosts();
-    // eslint-disable-next-line
-  }, []);
+  const fetchPosts = useCallback(async (reset = false) => {
+    if (reset) setLoading(true);
+    else setLoadingMore(true);
 
-  useEffect(() => {
-    if (!loaderRef.current) return;
-    const observer = new window.IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && !fetchingMore) {
-        fetchMorePosts();
-      }
-    });
-    observer.observe(loaderRef.current);
-    return () => observer.disconnect();
-    // eslint-disable-next-line
-  }, [loaderRef.current, fetchingMore]);
-
-  async function fetchInitialPosts() {
-    setLoading(true);
-    const postsQuery = query(
-      collection(db, "posts"),
-      orderBy("createdAt", "desc"),
-      limit(PAGE_SIZE)
-    );
-    const snap = await getDocs(postsQuery);
-    const lastVisible = snap.docs[snap.docs.length - 1];
-    setPosts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    setLastDoc(lastVisible);
-    setLoading(false);
-  }
-
-  async function fetchMorePosts() {
-    if (!lastDoc || fetchingMore) return;
-    setFetchingMore(true);
-    const postsQuery = query(
-      collection(db, "posts"),
-      orderBy("createdAt", "desc"),
-      startAfter(lastDoc),
-      limit(PAGE_SIZE)
-    );
-    const snap = await getDocs(postsQuery);
-    const morePosts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    setPosts(prev => [...prev, ...morePosts]);
-    setLastDoc(snap.docs[snap.docs.length - 1]);
-    setFetchingMore(false);
-  }
-
-  // Filter posts in-memory on search
-  const filteredPosts = !searchQuery
-    ? posts
-    : posts.filter(post =>
-        (post.title && post.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (post.content && post.content.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (post.authorName && post.authorName.toLowerCase().includes(searchQuery.toLowerCase()))
+    try {
+      let q = query(
+        collection(db, 'posts'),
+        orderBy('createdAt', 'desc'),
+        limit(PAGE_SIZE)
       );
+      if (!reset && lastDoc) {
+        q = query(
+          collection(db, 'posts'),
+          orderBy('createdAt', 'desc'),
+          startAfter(lastDoc),
+          limit(PAGE_SIZE)
+        );
+      }
+      const snapshot = await getDocs(q);
+      const newPosts = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      setPosts(prev => reset ? newPosts : [...prev, ...newPosts]);
+      setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
+      setHasMore(newPosts.length === PAGE_SIZE);
+    } catch (err) {
+      console.error('Error fetching posts:', err);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, [lastDoc]);
+
+  useEffect(() => {
+    fetchPosts(true);
+  }, []); // eslint-disable-line
+
+  // Filter posts client-side by search and category
+  const filteredPosts = posts.filter(post => {
+    const matchSearch = !searchQuery ||
+      post.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      post.content?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      post.authorName?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchCategory = category === 'All' || post.category === category;
+    return matchSearch && matchCategory;
+  });
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-tl from-purple-100 via-blue-50 to-pink-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 relative overflow-x-hidden">
-      {/* Animated, glassy blobs background */}
-      <div className="absolute top-[-14%] left-[-8%] w-[350px] h-[350px] bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse-slow"></div>
-      <div className="absolute top-[50%] right-[-15%] w-[320px] h-[320px] bg-pink-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse-slow"></div>
-      <div className="relative z-10 flex flex-col min-h-screen">
+    <>
+      <Head>
+        <title>Wavvy — Share ideas that actually matter</title>
+        <meta name="description" content="Wavvy is the modern home for ideas that move people. Write, share, and discover stories that matter." />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/favicon.ico" />
+      </Head>
+
+      <div className="min-h-screen bg-wavvy-bgLight dark:bg-wavvy-bgDark">
         <Navbar onSearch={setSearchQuery} />
-        {/* Hero */}
-        <section className="mb-10 pt-8 sm:pt-14">
-          {/* Mobile: animated marquee */}
-          <div className="block sm:hidden w-full overflow-x-hidden py-2">
-            <div className="animate-marquee whitespace-nowrap flex items-center justify-start">
-              <span className="text-3xl xs:text-4xl font-black bg-gradient-to-tr from-blue-600 to-fuchsia-500 bg-clip-text text-transparent drop-shadow-2xl mx-2">
-                Welcome to Wavvy
-              </span>
-              <span className="ml-1 not-italic text-3xl xs:text-4xl" style={{ color: "inherit" }}>🚀</span>
-            </div>
-          </div>
-          {/* Desktop: static center, NON-colored emoji */}
-          <h1 className="hidden sm:flex items-center justify-center text-5xl lg:text-6xl font-black drop-shadow-2xl animate-fade-in gap-2">
-            <span className="bg-gradient-to-tr from-blue-600 to-fuchsia-500 bg-clip-text text-transparent">
-              Welcome to Wavvy
-            </span>
-            <span className="not-italic text-5xl lg:text-6xl" style={{ color: "inherit" }}>🚀</span>
-          </h1>
-          <p className="text-2xl mt-5 text-gray-700 dark:text-gray-200 max-w-2xl mx-auto animate-fade-in delay-150 text-center font-bold">
-            Awareness before impact.
-          </p>
-        </section>
-        {/* Blog Grid */}
-        <main className="flex-1 w-full max-w-6xl mx-auto px-3 py-2">
-          <div className="grid gap-9 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 px-1">
-            {filteredPosts.length === 0 && !loading ? (
-              <p className="text-lg col-span-full text-center text-gray-500 font-medium">No results found.</p>
-            ) : (
-              filteredPosts.map((post, idx) => (
-                <div
-                  key={post.id}
-                  className={`
-                    glass rounded-3xl border-2 border-transparent
-                    bg-white/80 dark:bg-gray-800/90 shadow-xl relative overflow-hidden
-                    flex flex-col gap-4 transition-all duration-300
-                    hover:scale-[1.035] hover:shadow-2xl 
-                    hover:border-blue-300 dark:hover:border-fuchsia-500
-                    hover:z-10
-                    before:absolute before:inset-0 before:bg-gradient-to-tr
-                    before:from-blue-100 before:via-pink-100 before:to-violet-200
-                    dark:before:from-gray-800 dark:before:via-gray-700 dark:before:to-gray-900
-                    before:opacity-30 before:z-0
-                  `}
-                  style={{ animation: `pop-in .7s cubic-bezier(.18,.63,.48,1.17) ${idx * 50}ms both` }}
-                >
-                  <div className="relative z-10">
-                    <PostCard post={post} />
-                  </div>
-                </div>
-              ))
+
+        <main>
+          {/* Hero (hide when searching) */}
+          <AnimatePresence>
+            {!searchQuery && (
+              <motion.div exit={{ opacity: 0 }}>
+                <HeroSection onTopicSelect={setCategory} />
+              </motion.div>
             )}
-          </div>
-          {loading && <div className="text-center py-8 text-lg animate-pulse-slow">Loading...</div>}
-          <div ref={loaderRef} style={{ height: "36px" }}></div>
-          {fetchingMore && <div className="text-center py-4 text-base animate-pulse">Loading more...</div>}
-          {!loading && posts.length === 0 && (
-            <div className="text-center mt-16 text-gray-500 font-medium">No blog posts yet.</div>
-          )}
+          </AnimatePresence>
+
+          {/* Feed Section */}
+          <section id="feed" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            {/* Feed Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+              <div>
+                <h2 className="font-grotesk text-2xl font-bold text-gray-900 dark:text-white">
+                  {searchQuery
+                    ? `Results for "${searchQuery}"`
+                    : category !== 'All'
+                    ? `${category} Stories`
+                    : 'Latest Stories'}
+                </h2>
+                {filteredPosts.length > 0 && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    {filteredPosts.length} {filteredPosts.length === 1 ? 'story' : 'stories'}
+                  </p>
+                )}
+              </div>
+
+              {/* Sort Tabs */}
+              <div className="flex items-center gap-1 bg-gray-100 dark:bg-slate-800 rounded-xl p-1">
+                {SORT_OPTIONS.map(({ label, icon: Icon }) => (
+                  <button
+                    key={label}
+                    onClick={() => setSortBy(label)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      sortBy === label
+                        ? 'bg-white dark:bg-slate-700 text-wavvy-primary2 shadow-sm'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Category Filter Chips */}
+            <div className="flex gap-2 overflow-x-auto pb-3 mb-8 scrollbar-hide">
+              {CATEGORIES.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setCategory(cat)}
+                  className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
+                    category === cat
+                      ? 'bg-wavvy-primary text-white shadow-glow'
+                      : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            {/* Posts Grid */}
+            {loading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {Array(6).fill(0).map((_, i) => <SkeletonCard key={i} />)}
+              </div>
+            ) : filteredPosts.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center py-24"
+              >
+                <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-wavvy-gradient opacity-20 flex items-center justify-center text-4xl">
+                  📝
+                </div>
+                <h3 className="font-grotesk text-xl font-bold text-gray-700 dark:text-gray-300 mb-2">
+                  {searchQuery ? 'No results found' : 'No posts yet'}
+                </h3>
+                <p className="text-gray-400 text-sm max-w-xs mx-auto">
+                  {searchQuery
+                    ? `Try a different search term or explore by category.`
+                    : 'Be the first to share an idea on Wavvy.'}
+                </p>
+              </motion.div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <AnimatePresence>
+                  {filteredPosts.map((post, i) => (
+                    <motion.div
+                      key={post.id}
+                      initial={{ opacity: 0, y: 24 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.35, delay: Math.min(i * 0.06, 0.36) }}
+                    >
+                      <PostCard post={post} />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
+
+            {/* Load More */}
+            {!loading && hasMore && filteredPosts.length > 0 && (
+              <div className="mt-12 flex justify-center">
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => fetchPosts(false)}
+                  disabled={loadingMore}
+                  className="btn-ghost px-8 py-3 flex items-center gap-2"
+                >
+                  {loadingMore
+                    ? <><svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg> Loading...</>
+                    : 'Load more stories'
+                  }
+                </motion.button>
+              </div>
+            )}
+          </section>
         </main>
+
         <Footer />
       </div>
-      <style global jsx>{`
-        @keyframes marquee {
-          0% { transform: translateX(100%); }
-          100% { transform: translateX(-100%); }
-        }
-        .animate-marquee {
-          display: inline-block;
-          white-space: nowrap;
-          animation: marquee 12s linear infinite;
-        }
-        @keyframes pop-in {
-          0% { transform: scale(0.93) translateY(60px); opacity: 0; }
-          100% { transform: scale(1) translateY(0); opacity: 1; }
-        }
-      `}</style>
-    </div>
+    </>
   );
 }

@@ -1,77 +1,171 @@
-// src/components/PostCard.jsx
-import Link from "next/link";
-import formatDate from "../utils/formatDate";
-import Avatar from "./Avatar";
+import { useState } from 'react';
+import Link from 'next/link';
+import { motion } from 'framer-motion';
+import {
+  HeartIcon,
+  ChatBubbleLeftIcon,
+  BookmarkIcon,
+  EyeIcon,
+  ClockIcon,
+} from '@heroicons/react/24/outline';
+import {
+  HeartIcon as HeartSolid,
+  BookmarkIcon as BookmarkSolid,
+} from '@heroicons/react/24/solid';
+import { format } from 'date-fns';
 
-const emojis = ["🔥", "💡", "📚", "🎨", "🚀", "🥑", "🦄", "🌸", "🎮", "🤖"];
-function getPostEmoji(postId) {
-  let idx = (postId || "").split("").reduce((sum, c) => sum + c.charCodeAt(0), 0) % emojis.length;
-  return emojis[idx];
+const CATEGORY_COLORS = {
+  Technology: 'bg-blue-500/15 text-blue-400 border border-blue-500/20',
+  Design:     'bg-purple-500/15 text-purple-400 border border-purple-500/20',
+  Culture:    'bg-pink-500/15 text-pink-400 border border-pink-500/20',
+  Health:     'bg-green-500/15 text-green-400 border border-green-500/20',
+  Science:    'bg-cyan-500/15 text-cyan-400 border border-cyan-500/20',
+  default:    'bg-violet-500/15 text-violet-400 border border-violet-500/20',
+};
+
+function estimateReadingTime(content = '') {
+  const words = content.split(/\s+/).filter(Boolean).length;
+  const minutes = Math.max(1, Math.round(words / 200));
+  return `${minutes} min read`;
 }
 
-function displayAuthor(post) {
-  if (post.authorName && post.authorName.length > 0) return post.authorName;
-  if (post.author && post.author.includes("@")) return post.author.split("@")[0];
-  if (post.authorEmail && post.authorEmail.includes("@")) return post.authorEmail.split("@")[0];
-  return "User";
+function formatDate(ts) {
+  if (!ts) return '';
+  try {
+    const date = ts.toDate ? ts.toDate() : new Date(ts);
+    return format(date, 'MMM d');
+  } catch {
+    return '';
+  }
 }
 
 export default function PostCard({ post }) {
-  const hasImages = post.images && post.images.length > 0;
+  const [liked, setLiked] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
+  const [likeCount, setLikeCount] = useState(post?.likes || 0);
+
+  if (!post) return null;
+
+  const categoryColor = CATEGORY_COLORS[post.category] || CATEGORY_COLORS.default;
+  const readTime = estimateReadingTime(post.content);
+
+  const handleLike = (e) => {
+    e.preventDefault();
+    setLiked(v => !v);
+    setLikeCount(c => liked ? c - 1 : c + 1);
+  };
+
+  const handleBookmark = (e) => {
+    e.preventDefault();
+    setBookmarked(v => !v);
+  };
 
   return (
-    <div className="flex flex-col gap-2 bg-white/60 dark:bg-gray-900/75 rounded-2xl px-6 py-5 shadow-lg border border-gray-200 dark:border-gray-800 relative overflow-hidden z-10 min-h-[480px]">
-      {/* Big fun emoji */}
-      <span className="absolute left-3 top-3 text-3xl select-none opacity-85 drop-shadow">
-        {getPostEmoji(post.id)}
-      </span>
-      
-      {/* Author, time */}
-      <div className="flex items-center gap-2 mb-3 mt-2">
-        <Avatar url={post.authorAvatar} name={displayAuthor(post)} size={32} />
-        <span className="font-semibold text-sm text-gray-700 dark:text-gray-200 truncate">
-          {displayAuthor(post)}
-        </span>
-        <span className="text-xs text-blue-400 dark:text-pink-200 ml-auto">{formatDate(post.createdAt)}</span>
-      </div>
+    <motion.article
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -4 }}
+      transition={{ duration: 0.25 }}
+      className="group relative flex flex-col rounded-2xl overflow-hidden bg-white dark:bg-slate-800/60
+                 border border-gray-200/60 dark:border-white/[0.06]
+                 shadow-card hover:shadow-card-hover transition-shadow duration-300"
+    >
+      <Link href={`/post/${post.id}`} className="flex flex-col flex-1">
+        {/* Cover Image */}
+        {post.coverImage ? (
+          <div className="relative w-full aspect-[16/10] overflow-hidden">
+            <img
+              src={post.coverImage}
+              alt={post.title}
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              loading="lazy"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+          </div>
+        ) : (
+          <div className="w-full aspect-[16/10] bg-gradient-to-br from-wavvy-primary/20 via-wavvy-accent/15 to-wavvy-accent2/20 flex items-center justify-center">
+            <div className="w-16 h-16 rounded-2xl bg-wavvy-gradient opacity-30" />
+          </div>
+        )}
 
-      <Link href={`/post/${post.id}`} legacyBehavior>
-        <a className="block">
-          <h2 className="text-lg sm:text-xl font-bold mb-1 bg-gradient-to-r from-blue-600 to-fuchsia-500 bg-clip-text text-transparent hover:underline max-w-full transition">
+        <div className="flex flex-col flex-1 p-5">
+          {/* Category + read time */}
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            {post.category && (
+              <span className={`badge text-[11px] ${categoryColor}`}>
+                {post.category}
+              </span>
+            )}
+            {post.tags?.slice(0, 1).map(tag => (
+              <span key={tag} className="badge bg-gray-100 dark:bg-white/[0.06] text-gray-500 dark:text-gray-400 text-[11px]">
+                #{tag}
+              </span>
+            ))}
+            <span className="ml-auto flex items-center gap-1 text-[11px] text-gray-400">
+              <ClockIcon className="w-3 h-3" />
+              {readTime}
+            </span>
+          </div>
+
+          {/* Title */}
+          <h2 className="font-grotesk font-bold text-lg leading-snug text-gray-900 dark:text-white line-clamp-2 mb-2 group-hover:text-wavvy-primary2 transition-colors duration-200">
             {post.title}
           </h2>
-        </a>
+
+          {/* Excerpt */}
+          <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed flex-1">
+            {post.content?.replace(/<[^>]+>/g, '') || ''}
+          </p>
+        </div>
       </Link>
 
-      {/* Image Preview - Show first image if exists */}
-      {hasImages && (
-        <div className="my-3 -mx-2">
-          <img
-            src={post.images[0]}
-            alt={post.title}
-            className="w-full h-48 object-cover rounded-xl shadow-md"
-          />
-          {post.images.length > 1 && (
-            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center">
-              +{post.images.length - 1} more image{post.images.length > 2 ? 's' : ''}
+      {/* Footer */}
+      <div className="px-5 pb-4 flex items-center justify-between mt-auto">
+        {/* Author */}
+        <div className="flex items-center gap-2 min-w-0">
+          {post.authorPhoto ? (
+            <img src={post.authorPhoto} alt={post.authorName} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+          ) : (
+            <div className="w-7 h-7 rounded-full bg-wavvy-gradient flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+              {(post.authorName || '?')[0].toUpperCase()}
             </div>
           )}
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">{post.authorName || 'Anonymous'}</p>
+            <p className="text-[11px] text-gray-400">{formatDate(post.createdAt)}</p>
+          </div>
         </div>
-      )}
 
-      {/* Content - Flexible spacing */}
-      <div className="flex-1 flex flex-col justify-between">
-        <p className={`text-gray-600 dark:text-gray-200 text-base mb-3 ${hasImages ? 'line-clamp-2' : 'line-clamp-5'}`}>
-          {post.content}
-        </p>
-        
-        <Link
-          href={`/post/${post.id}`}
-          className="text-sm px-3 py-1 bg-gradient-to-r from-blue-400 via-pink-400 to-blue-400 rounded-xl text-white font-medium hover:scale-105 shadow-md inline-block border-2 border-transparent hover:border-fuchsia-300 dark:hover:border-blue-300 transition-all w-fit"
-        >
-          Read More →
-        </Link>
+        {/* Actions */}
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <button
+            onClick={handleLike}
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-wavvy-accent transition-colors"
+            aria-label="Like"
+          >
+            {liked
+              ? <HeartSolid className="w-4 h-4 text-wavvy-accent" />
+              : <HeartIcon className="w-4 h-4" />}
+            <span>{likeCount}</span>
+          </button>
+          <button
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-wavvy-accent2 transition-colors"
+            aria-label="Comments"
+          >
+            <ChatBubbleLeftIcon className="w-4 h-4" />
+            <span>{post.commentCount || 0}</span>
+          </button>
+          <button
+            onClick={handleBookmark}
+            className="text-gray-400 hover:text-wavvy-primary2 transition-colors"
+            aria-label="Bookmark"
+          >
+            {bookmarked
+              ? <BookmarkSolid className="w-4 h-4 text-wavvy-primary2" />
+              : <BookmarkIcon className="w-4 h-4" />}
+          </button>
+        </div>
       </div>
-    </div>
+    </motion.article>
   );
 }
