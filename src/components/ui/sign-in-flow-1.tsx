@@ -359,7 +359,7 @@ const ShaderMaterial = ({
 
 const Shader: React.FC<ShaderProps> = ({ source, uniforms, maxFps = 60 }) => {
   return (
-    <Canvas className="absolute inset-0  h-full w-full">
+    <Canvas className="absolute inset-0 h-full w-full pointer-events-none" style={{ pointerEvents: 'none' }}>
       <ShaderMaterial source={source} uniforms={uniforms} maxFps={maxFps} />
     </Canvas>
   );
@@ -563,10 +563,10 @@ export const SignInPage = ({ className }: SignInPageProps) => {
 
   return (
     <div className={cn("flex w-[100%] flex-col min-h-screen bg-black relative", className)}>
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0 pointer-events-none">
         {/* Initial canvas (forward animation) */}
         {initialCanvasVisible && (
-          <div className="absolute inset-0">
+          <div className="absolute inset-0 pointer-events-none">
             <CanvasRevealEffect
               animationSpeed={3}
               containerClassName="bg-black"
@@ -582,7 +582,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
         
         {/* Reverse canvas (appears when code is complete) */}
         {reverseCanvasVisible && (
-          <div className="absolute inset-0">
+          <div className="absolute inset-0 pointer-events-none">
             <CanvasRevealEffect
               animationSpeed={4}
               containerClassName="bg-black"
@@ -651,7 +651,8 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                             placeholder="info@gmail.com"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full backdrop-blur-[1px] text-white border border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
+                            className="w-full backdrop-blur-[1px] bg-white/10 text-white placeholder-white/40 caret-white border border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center autofill:bg-[#1a1a2e] autofill:text-white"
+                            style={{ colorScheme: 'dark' }}
                             required
                           />
                           <button 
@@ -702,7 +703,8 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                           placeholder="Your password"
                           value={password}
                           onChange={e => setPassword(e.target.value)}
-                          className="w-full backdrop-blur-[1px] bg-transparent text-white border border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
+                          className="w-full backdrop-blur-[1px] bg-white/10 text-white placeholder-white/40 caret-white border border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
+                          style={{ colorScheme: 'dark' }}
                           required
                         />
                       </div>
@@ -858,9 +860,9 @@ export const SignUpPage = ({ className }: SignUpPageProps) => {
 
   return (
     <div className={cn("flex w-[100%] flex-col min-h-screen bg-black relative", className)}>
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0 pointer-events-none">
         {initialCanvasVisible && (
-          <div className="absolute inset-0">
+          <div className="absolute inset-0 pointer-events-none">
             <CanvasRevealEffect
               animationSpeed={3}
               containerClassName="bg-black"
@@ -872,7 +874,7 @@ export const SignUpPage = ({ className }: SignUpPageProps) => {
         )}
         
         {reverseCanvasVisible && (
-          <div className="absolute inset-0">
+          <div className="absolute inset-0 pointer-events-none">
             <CanvasRevealEffect
               animationSpeed={4}
               containerClassName="bg-black"
@@ -932,7 +934,8 @@ export const SignUpPage = ({ className }: SignUpPageProps) => {
                           placeholder="Your Name"
                           value={name}
                           onChange={(e) => setName(e.target.value)}
-                          className="w-full backdrop-blur-[1px] text-white border border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
+                          className="w-full backdrop-blur-[1px] bg-white/10 text-white placeholder-white/40 caret-white border border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
+                          style={{ colorScheme: 'dark' }}
                           required
                         />
                         <div className="relative">
@@ -941,7 +944,8 @@ export const SignUpPage = ({ className }: SignUpPageProps) => {
                             placeholder="Email Address"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full backdrop-blur-[1px] text-white border border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
+                            className="w-full backdrop-blur-[1px] bg-white/10 text-white placeholder-white/40 caret-white border border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
+                            style={{ colorScheme: 'dark' }}
                             required
                           />
                           <button 
@@ -992,7 +996,8 @@ export const SignUpPage = ({ className }: SignUpPageProps) => {
                           placeholder="Create a password"
                           value={password}
                           onChange={e => setPassword(e.target.value)}
-                          className="w-full backdrop-blur-[1px] bg-transparent text-white border border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
+                          className="w-full backdrop-blur-[1px] bg-white/10 text-white placeholder-white/40 caret-white border border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
+                          style={{ colorScheme: 'dark' }}
                           required
                         />
                       </div>
