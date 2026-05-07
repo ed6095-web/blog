@@ -24,18 +24,24 @@ import {
 } from '@heroicons/react/24/outline';
 import { useTheme } from 'next-themes';
 
-const MOCK_NOTIFICATIONS = [
-  { id: 1, type: 'like', text: 'Someone liked your post "Getting started with Next.js"', time: '2m ago', read: false },
-  { id: 2, type: 'comment', text: 'New comment on your post: "Great article!"', time: '15m ago', read: false },
-  { id: 3, type: 'follow', text: 'A new user started following you', time: '1h ago', read: true },
-  { id: 4, type: 'like', text: 'Someone liked your post "React best practices"', time: '3h ago', read: true },
-];
+import { db } from '../lib/firebase';
+import { collection, query, where, orderBy, onSnapshot, writeBatch, doc, updateDoc } from 'firebase/firestore';
 
 const notifIcon = (type) => {
   if (type === 'like') return <HeartIcon className="w-4 h-4 text-pink-400" />;
   if (type === 'comment') return <ChatBubbleLeftIcon className="w-4 h-4 text-blue-400" />;
   if (type === 'follow') return <UserPlusIcon className="w-4 h-4 text-violet-400" />;
   return <BellIcon className="w-4 h-4 text-gray-400" />;
+};
+
+const formatTime = (timestamp) => {
+  if (!timestamp) return '';
+  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  const diff = (new Date() - date) / 1000;
+  if (diff < 60) return 'Just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
 };
 
 export default function Navbar({ onSearch }) {
@@ -47,7 +53,7 @@ export default function Navbar({ onSearch }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const searchRef = useRef(null);
@@ -58,6 +64,26 @@ export default function Navbar({ onSearch }) {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   useEffect(() => { setMounted(true); }, []);
+
+  // Fetch real notifications
+  useEffect(() => {
+    if (!user) {
+      setNotifications([]);
+      return;
+    }
+    const q = query(
+      collection(db, 'notifications'),
+      where('recipientId', '==', user.uid),
+      orderBy('createdAt', 'desc')
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const notifs = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+      setNotifications(notifs);
+    }, (error) => {
+      console.error('Error fetching notifications:', error);
+    });
+    return () => unsubscribe();
+  }, [user]);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -88,8 +114,36 @@ export default function Navbar({ onSearch }) {
     router.push('/');
   };
 
-  const markAllRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  const markAllRead = async () => {
+    if (!user) return;
+    const unread = notifications.filter(n => !n.read);
+    if (unread.length === 0) return;
+    try {
+      const batch = writeBatch(db);
+      unread.forEach(n => {
+        const ref = doc(db, 'notifications', n.id);
+        batch.update(ref, { read: true });
+      });
+      await batch.commit();
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    } catch (e) {
+      console.error('Error marking all read:', e);
+    }
+  };
+
+  const handleNotifClick = async (notif) => {
+    if (!notif.read) {
+      try {
+        const ref = doc(db, 'notifications', notif.id);
+        await updateDoc(ref, { read: true });
+      } catch (e) {
+        console.error('Error marking read:', e);
+      }
+    }
+    if (notif.link) {
+      router.push(notif.link);
+      setNotifOpen(false);
+    }
   };
 
   const isDark = mounted && theme === 'dark';
@@ -194,16 +248,15 @@ export default function Navbar({ onSearch }) {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -8, scale: 0.96 }}
                         transition={{ duration: 0.15 }}
-                        className="absolute right-[-10px] sm:right-0 top-full mt-2 w-[320px] sm:w-80 rounded-2xl overflow-hidden shadow-2xl z-[100] origin-top-right max-w-[calc(100vw-2rem)]"
-                        style={{ background: 'rgba(10,10,20,0.97)', border: '1px solid rgba(255,255,255,0.1)' }}
+                        className="absolute right-[-10px] sm:right-0 top-full mt-2 w-[320px] sm:w-80 rounded-2xl overflow-hidden shadow-2xl z-[100] origin-top-right max-w-[calc(100vw-2rem)] bg-white dark:bg-slate-900 border border-gray-100 dark:border-white/10"
                       >
                         {/* Header */}
-                        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-                          <h3 className="text-sm font-semibold text-white">Notifications</h3>
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-white/10">
+                          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Notifications</h3>
                           {unreadCount > 0 && (
                             <button
                               onClick={markAllRead}
-                              className="flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                              className="flex items-center gap-1 text-xs text-violet-500 hover:text-violet-600 dark:text-violet-400 dark:hover:text-violet-300 transition-colors"
                             >
                               <CheckCircleIcon className="w-3.5 h-3.5" />
                               Mark all read
@@ -222,20 +275,20 @@ export default function Navbar({ onSearch }) {
                             notifications.map(notif => (
                               <div
                                 key={notif.id}
-                                onClick={() => setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n))}
-                                className={`flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-white/5 ${!notif.read ? 'bg-violet-500/5' : ''}`}
+                                onClick={() => handleNotifClick(notif)}
+                                className={`flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-white/5 ${!notif.read ? 'bg-violet-50 dark:bg-violet-500/5' : ''}`}
                               >
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${!notif.read ? 'bg-white/10' : 'bg-white/5'}`}>
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${!notif.read ? 'bg-violet-100 dark:bg-white/10' : 'bg-gray-100 dark:bg-white/5'}`}>
                                   {notifIcon(notif.type)}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className={`text-xs leading-relaxed ${!notif.read ? 'text-white' : 'text-gray-400'}`}>
+                                  <p className={`text-xs leading-relaxed ${!notif.read ? 'text-gray-900 dark:text-white font-medium' : 'text-gray-600 dark:text-gray-400'}`}>
                                     {notif.text}
                                   </p>
-                                  <p className="text-[10px] text-gray-600 mt-1">{notif.time}</p>
+                                  <p className="text-[10px] text-gray-500 dark:text-gray-600 mt-1">{formatTime(notif.createdAt)}</p>
                                 </div>
                                 {!notif.read && (
-                                  <div className="w-2 h-2 bg-violet-400 rounded-full flex-shrink-0 mt-1.5" />
+                                  <div className="w-2 h-2 bg-violet-500 dark:bg-violet-400 rounded-full flex-shrink-0 mt-1.5" />
                                 )}
                               </div>
                             ))
@@ -243,8 +296,8 @@ export default function Navbar({ onSearch }) {
                         </div>
 
                         {/* Footer */}
-                        <div className="px-4 py-2.5 border-t border-white/10 text-center">
-                          <button className="text-xs text-violet-400 hover:text-violet-300 transition-colors">
+                        <div className="px-4 py-2.5 border-t border-gray-100 dark:border-white/10 text-center bg-gray-50 dark:bg-transparent">
+                          <button className="text-xs text-violet-500 hover:text-violet-600 dark:text-violet-400 dark:hover:text-violet-300 transition-colors">
                             View all notifications
                           </button>
                         </div>

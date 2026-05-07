@@ -238,9 +238,9 @@ export default function ProfilePage() {
           )}
         </div>
 
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Avatar + Info Row */}
-          <div className="relative -mt-16 mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 px-2 sm:px-0">
+          <div className="relative -mt-16 mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
             <div className="flex flex-col sm:flex-row sm:items-end gap-5">
               {/* Avatar */}
               <motion.div
