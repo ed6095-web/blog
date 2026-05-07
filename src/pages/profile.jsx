@@ -14,6 +14,7 @@ import Navbar from '../components/Navbar';
 import PostCard from '../components/PostCard';
 import SkeletonCard from '../components/SkeletonCard';
 import Footer from '../components/Footer';
+import Avatar from '../components/Avatar';
 import {
   PencilSquareIcon,
   LinkIcon,
@@ -33,6 +34,8 @@ import { format } from 'date-fns';
 
 const TABS = [
   { id: 'posts', label: 'Posts', icon: BookOpenIcon },
+  { id: 'followers', label: 'Followers', icon: UserCircleIcon },
+  { id: 'following', label: 'Following', icon: UserCircleIcon },
   { id: 'about', label: 'About', icon: UserCircleIcon },
 ];
 
@@ -62,6 +65,10 @@ export default function ProfilePage() {
   const [bannerFile, setBannerFile] = useState(null);
   const [bannerURL, setBannerURL] = useState('');
   const [photoURL, setPhotoURL] = useState('');
+
+  const [followersList, setFollowersList] = useState([]);
+  const [followingList, setFollowingList] = useState([]);
+  const [socialLoading, setSocialLoading] = useState(false);
 
   const avatarInputRef = useRef(null);
   const bannerInputRef = useRef(null);
@@ -121,6 +128,43 @@ export default function ProfilePage() {
     };
     fetchPosts();
   }, [user]);
+
+  // Fetch followers/following list when those tabs are active
+  useEffect(() => {
+    if (!user || (activeTab !== 'followers' && activeTab !== 'following')) return;
+    
+    const fetchSocial = async () => {
+      setSocialLoading(true);
+      try {
+        const profileSnap = await getDoc(doc(db, 'profiles', user.uid));
+        if (profileSnap.exists()) {
+          const data = profileSnap.data();
+          const ids = activeTab === 'followers' ? (data.followers || []) : (data.following || []);
+          
+          if (ids.length === 0) {
+            activeTab === 'followers' ? setFollowersList([]) : setFollowingList([]);
+            return;
+          }
+
+          // Fetch profiles for these IDs (chunked to 10 at a time for where-in)
+          const fetchedProfiles = [];
+          for (let i = 0; i < ids.length; i += 10) {
+            const chunk = ids.slice(i, i + 10);
+            const q = query(collection(db, 'profiles'), where('__name__', 'in', chunk));
+            const snap = await getDocs(q);
+            fetchedProfiles.push(...snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          }
+          
+          activeTab === 'followers' ? setFollowersList(fetchedProfiles) : setFollowingList(fetchedProfiles);
+        }
+      } catch (err) {
+        console.error("Error fetching social data:", err);
+      } finally {
+        setSocialLoading(false);
+      }
+    };
+    fetchSocial();
+  }, [user, activeTab]);
 
   const handleAvatarChange = (e) => {
     const file = e.target.files?.[0];
@@ -259,17 +303,12 @@ export default function ProfilePage() {
                 onClick={editing ? () => avatarInputRef.current?.click() : undefined}
                 style={{ cursor: editing ? 'pointer' : 'default' }}
               >
-                {avatarSrc ? (
-                  <img
-                    src={avatarSrc}
-                    alt={user.displayName}
-                    className="w-28 h-28 rounded-2xl object-cover border-4 border-white dark:border-slate-900 shadow-xl"
-                  />
-                ) : (
-                  <div className="w-28 h-28 rounded-2xl bg-wavvy-gradient border-4 border-white dark:border-slate-900 shadow-xl flex items-center justify-center text-4xl font-black text-white font-grotesk">
-                    {(user.displayName || user.email || 'W')[0].toUpperCase()}
-                  </div>
-                )}
+                <Avatar 
+                  url={avatarSrc} 
+                  name={user.displayName} 
+                  size={112} 
+                  className="rounded-2xl border-4 border-white dark:border-slate-900 shadow-xl"
+                />
 
                 {/* Avatar upload overlay — always visible when editing */}
                 {editing && (
@@ -436,8 +475,43 @@ export default function ProfilePage() {
                     </div>
               )}
 
-
-
+              {(activeTab === 'followers' || activeTab === 'following') && (
+                <div className="space-y-4">
+                  {socialLoading ? (
+                    <div className="space-y-3">
+                      {[1,2,3].map(i => (
+                        <div key={i} className="h-16 bg-gray-100 dark:bg-white/[0.06] animate-pulse rounded-2xl" />
+                      ))}
+                    </div>
+                  ) : (activeTab === 'followers' ? followersList : followingList).length === 0 ? (
+                    <div className="text-center py-20 bg-gray-50 dark:bg-slate-800/30 rounded-2xl border border-gray-200 dark:border-white/[0.06]">
+                      <UserCircleIcon className="w-10 h-10 mx-auto mb-3 text-gray-400 opacity-30" />
+                      <p className="text-gray-500">
+                        {activeTab === 'followers' ? "No followers yet." : "You aren't following anyone yet."}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {(activeTab === 'followers' ? followersList : followingList).map(p => (
+                        <Link key={p.id} href={`/user/${p.id}`}>
+                          <div className="flex items-center gap-3 p-4 rounded-2xl bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-white/[0.06] hover:border-wavvy-primary2/50 transition-all">
+                            <Avatar 
+                              url={p.photoURL} 
+                              name={p.displayName} 
+                              size={40} 
+                              className="rounded-xl" 
+                            />
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{p.displayName}</p>
+                              <p className="text-xs text-gray-400 truncate">{p.bio || 'Wavvy Enthusiast'}</p>
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               {activeTab === 'about' && (
                 <div className="max-w-lg space-y-4">
                   <div className="glass-card p-6">

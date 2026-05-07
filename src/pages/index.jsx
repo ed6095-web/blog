@@ -73,15 +73,30 @@ export default function HomePage() {
     fetchPosts(true);
   }, []); // eslint-disable-line
 
-  // Filter posts client-side by search and category
-  const filteredPosts = posts.filter(post => {
-    const matchSearch = !searchQuery ||
-      post.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      post.content?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      post.authorName?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchCategory = category === 'All' || post.category === category;
-    return matchSearch && matchCategory;
-  });
+  // Filter and sort posts client-side
+  const filteredPosts = posts
+    .filter(post => {
+      const matchSearch = !searchQuery ||
+        post.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        post.content?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        post.authorName?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchCategory = category === 'All' || post.category === category;
+      return matchSearch && matchCategory;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'Latest') {
+        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+        return dateB - dateA;
+      }
+      if (sortBy === 'Trending') {
+        return (b.likes || 0) - (a.likes || 0);
+      }
+      if (sortBy === 'Featured') {
+        return (b.views || 0) - (a.views || 0);
+      }
+      return 0;
+    });
 
   return (
     <>

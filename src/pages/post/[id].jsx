@@ -8,6 +8,7 @@ import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import Navbar from '../../components/Navbar';
 import Footer from '../../components/Footer';
+import Avatar from '../../components/Avatar';
 import {
   HeartIcon,
   ChatBubbleLeftIcon,
@@ -75,7 +76,12 @@ export default function PostPage() {
           if (data.authorId) {
             const authorSnap = await getDoc(doc(db, 'profiles', data.authorId));
             if (authorSnap.exists()) {
-              setAuthorPhoto(authorSnap.data().photoURL || data.authorPhoto || '');
+              const profileData = authorSnap.data();
+              setAuthorPhoto(profileData.photoURL || data.authorPhoto || '');
+              // Update post author name if it changed in profile
+              if (profileData.displayName) {
+                setPost(prev => ({ ...prev, authorName: profileData.displayName }));
+              }
             } else {
               setAuthorPhoto(data.authorPhoto || '');
             }
@@ -118,8 +124,10 @@ export default function PostPage() {
     setLikeCount(c => newLiked ? c + 1 : c - 1);
     
     try {
-      await updateDoc(doc(db, 'posts', id), { 
-        likedBy: newLiked ? arrayUnion(user.uid) : arrayRemove(user.uid) 
+      const postRef = doc(db, 'posts', id);
+      await updateDoc(postRef, { 
+        likedBy: newLiked ? arrayUnion(user.uid) : arrayRemove(user.uid),
+        likes: increment(newLiked ? 1 : -1)
       });
     } catch (e) { 
       console.error("Error liking post:", e);
@@ -233,12 +241,12 @@ export default function PostPage() {
           {/* Author + Meta */}
           <div className="flex items-center gap-4 mb-8 pb-8 border-b border-gray-200 dark:border-white/[0.06]">
             <Link href={`/user/${post.authorId}`}>
-              {authorPhoto
-                ? <img src={authorPhoto} alt={post.authorName} className="w-12 h-12 rounded-full object-cover ring-2 ring-wavvy-primary2/20 hover:ring-wavvy-primary transition-all" />
-                : <div className="w-12 h-12 rounded-full bg-wavvy-gradient flex items-center justify-center text-white font-bold ring-2 ring-wavvy-primary2/20 hover:ring-wavvy-primary transition-all">
-                    {(post.authorName || '?')[0].toUpperCase()}
-                  </div>
-              }
+              <Avatar 
+                url={authorPhoto} 
+                name={post.authorName} 
+                size={48} 
+                className="ring-2 ring-wavvy-primary2/20 hover:ring-wavvy-primary transition-all"
+              />
             </Link>
             <div className="flex-1">
               <Link href={`/user/${post.authorId}`} className="font-semibold text-gray-900 dark:text-white hover:text-wavvy-primary transition-colors">

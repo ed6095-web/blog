@@ -4,11 +4,12 @@ import { useRouter } from 'next/router';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
-import { doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove, collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import Navbar from '../../components/Navbar';
 import PostCard from '../../components/PostCard';
 import SkeletonCard from '../../components/SkeletonCard';
 import Footer from '../../components/Footer';
+import Avatar from '../../components/Avatar';
 import {
   LinkIcon,
   CalendarDaysIcon,
@@ -191,13 +192,12 @@ export default function PublicProfilePage() {
           <div className="relative -mt-16 mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 px-2 sm:px-0">
             <div className="flex flex-col sm:flex-row sm:items-end gap-5 flex-1 min-w-0">
               <div className="relative">
-                {avatarSrc ? (
-                  <img src={avatarSrc} alt={profile.displayName} className="w-28 h-28 rounded-2xl object-cover border-4 border-white dark:border-slate-900 shadow-xl" />
-                ) : (
-                  <div className="w-28 h-28 rounded-2xl bg-wavvy-gradient border-4 border-white dark:border-slate-900 shadow-xl flex items-center justify-center text-4xl font-black text-white font-grotesk">
-                    {(profile.displayName || '?')[0].toUpperCase()}
-                  </div>
-                )}
+                <Avatar 
+                  url={avatarSrc} 
+                  name={profile.displayName} 
+                  size={112} 
+                  className="rounded-2xl border-4 border-white dark:border-slate-900 shadow-xl"
+                />
                 <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-green-400 rounded-full border-3 border-white dark:border-slate-900 flex items-center justify-center">
                   <SparklesIcon className="w-4 h-4 text-white" />
                 </div>

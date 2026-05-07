@@ -14,8 +14,9 @@ import {
 } from '@heroicons/react/24/solid';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
-import { doc, setDoc, updateDoc, arrayUnion, arrayRemove, collection, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, arrayUnion, arrayRemove, collection, addDoc, serverTimestamp, getDoc, increment } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import Avatar from './Avatar';
 
 const CATEGORY_COLORS = {
   Technology: 'bg-blue-500/15 text-blue-400 border border-blue-500/20',
@@ -59,15 +60,19 @@ export default function PostCard({ post }) {
       setLiked(false);
     }
 
-    // Fetch latest author photo if not in post data
-    if (!post.authorPhoto && post.authorId) {
+    // Always fetch latest author profile to ensure DP is up-to-date
+    if (post.authorId) {
       const fetchAuthor = async () => {
-        const snap = await getDoc(doc(db, 'profiles', post.authorId));
-        if (snap.exists()) setAuthorProfile(snap.data());
+        try {
+          const snap = await getDoc(doc(db, 'profiles', post.authorId));
+          if (snap.exists()) setAuthorProfile(snap.data());
+        } catch (err) {
+          console.error("Error fetching author profile:", err);
+        }
       };
       fetchAuthor();
     }
-  }, [user, post]);
+  }, [user, post.id, post.authorId, post.likedBy]);
 
   if (!post) return null;
 
@@ -88,8 +93,11 @@ export default function PostCard({ post }) {
     try {
       const postRef = doc(db, 'posts', post.id);
       if (!wasLiked) {
-        // Use setDoc with merge: true for safety, though updateDoc is usually fine for posts
-        await setDoc(postRef, { likedBy: arrayUnion(user.uid) }, { merge: true });
+        await updateDoc(postRef, { 
+          likedBy: arrayUnion(user.uid),
+          // Also increment the likes counter for legacy support/sorting
+          likes: increment(1)
+        });
         
         if (user.uid !== post.authorId) {
           await addDoc(collection(db, 'notifications'), {
@@ -103,7 +111,10 @@ export default function PostCard({ post }) {
           });
         }
       } else {
-        await setDoc(postRef, { likedBy: arrayRemove(user.uid) }, { merge: true });
+        await updateDoc(postRef, { 
+          likedBy: arrayRemove(user.uid),
+          likes: increment(-1)
+        });
       }
     } catch (error) {
       console.error("Error toggling like:", error);
@@ -183,13 +194,11 @@ export default function PostCard({ post }) {
       <div className="px-5 pb-4 flex items-center justify-between mt-auto">
         {/* Author */}
         <Link href={`/user/${post.authorId}`} className="flex items-center gap-2 min-w-0 group/author" onClick={(e) => e.stopPropagation()}>
-          {(authorProfile?.photoURL || post.authorPhoto) ? (
-            <img src={authorProfile?.photoURL || post.authorPhoto} alt={post.authorName} className="w-7 h-7 rounded-full object-cover flex-shrink-0 ring-2 ring-transparent group-hover/author:ring-wavvy-primary transition-all" />
-          ) : (
-            <div className="w-7 h-7 rounded-full bg-wavvy-gradient flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ring-2 ring-transparent group-hover/author:ring-wavvy-primary transition-all">
-              {(post.authorName || '?')[0].toUpperCase()}
-            </div>
-          )}
+          <Avatar 
+            url={authorProfile?.photoURL || post.authorPhoto} 
+            name={authorProfile?.displayName || post.authorName} 
+            size={28} 
+          />
           <div className="min-w-0">
             <p className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate group-hover/author:text-wavvy-primary transition-colors">{post.authorName || 'Anonymous'}</p>
             <p className="text-[11px] text-gray-400">{formatDate(post.createdAt)}</p>

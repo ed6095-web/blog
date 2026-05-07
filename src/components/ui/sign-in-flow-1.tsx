@@ -8,8 +8,9 @@ import { useRouter } from "next/router";
 import { cn } from "@/lib/utils";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { GoogleAuthProvider, signInWithPopup, updateProfile } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { login, signup } from '@/lib/auth';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 
 import * as THREE from "three";
 
@@ -841,6 +842,18 @@ export const SignUpPage = ({ className }: SignUpPageProps) => {
       const userCredential = await signup(email, password);
       if (name && userCredential.user) {
         await updateProfile(userCredential.user, { displayName: name });
+        
+        // Initialize Firestore profile
+        await setDoc(doc(db, 'profiles', userCredential.user.uid), {
+          displayName: name,
+          email: email,
+          photoURL: '',
+          bio: '',
+          website: '',
+          followers: [],
+          following: [],
+          createdAt: serverTimestamp(),
+        }, { merge: true });
       }
       setReverseCanvasVisible(true);
       setTimeout(() => setInitialCanvasVisible(false), 50);
@@ -860,6 +873,22 @@ export const SignUpPage = ({ className }: SignUpPageProps) => {
       provider.setCustomParameters({ prompt: 'select_account' });
       const result = await signInWithPopup(auth, provider);
       if (result.user) {
+        // Initialize Firestore profile if it doesn't exist
+        const profileRef = doc(db, 'profiles', result.user.uid);
+        const profileSnap = await getDoc(profileRef);
+        
+        if (!profileSnap.exists()) {
+          await setDoc(profileRef, {
+            displayName: result.user.displayName || '',
+            email: result.user.email || '',
+            photoURL: result.user.photoURL || '',
+            bio: '',
+            website: '',
+            followers: [],
+            following: [],
+            createdAt: serverTimestamp(),
+          });
+        }
         router.replace('/');
       }
     } catch (err: any) {
