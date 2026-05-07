@@ -56,15 +56,14 @@ export const CanvasRevealEffect = ({
   reverse?: boolean; // This prop determines the direction
 }) => {
   return (
-    <div className={cn("h-full relative w-full", containerClassName)}> {/* Removed bg-white */}
-      <div className="h-full w-full">
+    <div className={cn("h-full relative w-full pointer-events-none", containerClassName)}>
+      <div className="h-full w-full pointer-events-none">
         <DotMatrix
           colors={colors ?? [[0, 255, 255]]}
           dotSize={dotSize ?? 3}
           opacities={
             opacities ?? [0.3, 0.3, 0.3, 0.5, 0.5, 0.5, 0.8, 0.8, 0.8, 1]
           }
-          // Pass reverse state and speed via string flags in the empty shader prop
           shader={`
             ${reverse ? 'u_reverse_active' : 'false'}_;
             animation_speed_factor_${animationSpeed.toFixed(1)}_;
@@ -73,9 +72,7 @@ export const CanvasRevealEffect = ({
         />
       </div>
       {showGradient && (
-        // Adjust gradient colors if needed based on background (was bg-white, now likely uses containerClassName bg)
-        // Example assuming a dark background like the SignInPage uses:
-         <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent" />
+         <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent pointer-events-none" />
       )}
     </div>
   );
