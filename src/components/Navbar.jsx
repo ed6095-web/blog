@@ -17,8 +17,26 @@ import {
   HomeIcon,
   BookmarkIcon,
   ArrowRightOnRectangleIcon,
+  CheckCircleIcon,
+  HeartIcon,
+  ChatBubbleLeftIcon,
+  UserPlusIcon,
 } from '@heroicons/react/24/outline';
 import { useTheme } from 'next-themes';
+
+const MOCK_NOTIFICATIONS = [
+  { id: 1, type: 'like', text: 'Someone liked your post "Getting started with Next.js"', time: '2m ago', read: false },
+  { id: 2, type: 'comment', text: 'New comment on your post: "Great article!"', time: '15m ago', read: false },
+  { id: 3, type: 'follow', text: 'A new user started following you', time: '1h ago', read: true },
+  { id: 4, type: 'like', text: 'Someone liked your post "React best practices"', time: '3h ago', read: true },
+];
+
+const notifIcon = (type) => {
+  if (type === 'like') return <HeartIcon className="w-4 h-4 text-pink-400" />;
+  if (type === 'comment') return <ChatBubbleLeftIcon className="w-4 h-4 text-blue-400" />;
+  if (type === 'follow') return <UserPlusIcon className="w-4 h-4 text-violet-400" />;
+  return <BellIcon className="w-4 h-4 text-gray-400" />;
+};
 
 export default function Navbar({ onSearch }) {
   const { user, logout } = useAuth();
@@ -28,11 +46,16 @@ export default function Navbar({ onSearch }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [profileOpen, setProfileOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const searchRef = useRef(null);
   const profileRef = useRef(null);
+  const notifRef = useRef(null);
   const debounceRef = useRef(null);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -44,12 +67,9 @@ export default function Navbar({ onSearch }) {
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (profileRef.current && !profileRef.current.contains(e.target)) {
-        setProfileOpen(false);
-      }
-      if (searchRef.current && !searchRef.current.contains(e.target)) {
-        setSearchOpen(false);
-      }
+      if (profileRef.current && !profileRef.current.contains(e.target)) setProfileOpen(false);
+      if (searchRef.current && !searchRef.current.contains(e.target)) setSearchOpen(false);
+      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -59,15 +79,17 @@ export default function Navbar({ onSearch }) {
     const val = e.target.value;
     setSearchQuery(val);
     clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      if (onSearch) onSearch(val);
-    }, 350);
+    debounceRef.current = setTimeout(() => { if (onSearch) onSearch(val); }, 350);
   };
 
   const handleLogout = async () => {
     setProfileOpen(false);
     await logout();
     router.push('/');
+  };
+
+  const markAllRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
   const isDark = mounted && theme === 'dark';
@@ -149,11 +171,87 @@ export default function Navbar({ onSearch }) {
                 </button>
               )}
 
+              {/* Notification Bell */}
               {user && (
-                <button className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors relative" aria-label="Notifications">
-                  <BellIcon className="w-5 h-5" />
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-wavvy-accent rounded-full" />
-                </button>
+                <div ref={notifRef} className="relative">
+                  <button
+                    onClick={() => { setNotifOpen(!notifOpen); setProfileOpen(false); }}
+                    className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors relative"
+                    aria-label="Notifications"
+                  >
+                    <BellIcon className="w-5 h-5" />
+                    {unreadCount > 0 && (
+                      <span className="absolute top-1 right-1 w-4 h-4 bg-pink-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </button>
+
+                  <AnimatePresence>
+                    {notifOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-0 top-full mt-2 w-80 rounded-2xl overflow-hidden shadow-2xl"
+                        style={{ background: 'rgba(10,10,20,0.97)', border: '1px solid rgba(255,255,255,0.1)' }}
+                      >
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+                          <h3 className="text-sm font-semibold text-white">Notifications</h3>
+                          {unreadCount > 0 && (
+                            <button
+                              onClick={markAllRead}
+                              className="flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                            >
+                              <CheckCircleIcon className="w-3.5 h-3.5" />
+                              Mark all read
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Notification List */}
+                        <div className="max-h-80 overflow-y-auto">
+                          {notifications.length === 0 ? (
+                            <div className="py-10 text-center text-gray-500 text-sm">
+                              <BellIcon className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                              No notifications yet
+                            </div>
+                          ) : (
+                            notifications.map(notif => (
+                              <div
+                                key={notif.id}
+                                onClick={() => setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n))}
+                                className={`flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-white/5 ${!notif.read ? 'bg-violet-500/5' : ''}`}
+                              >
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${!notif.read ? 'bg-white/10' : 'bg-white/5'}`}>
+                                  {notifIcon(notif.type)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className={`text-xs leading-relaxed ${!notif.read ? 'text-white' : 'text-gray-400'}`}>
+                                    {notif.text}
+                                  </p>
+                                  <p className="text-[10px] text-gray-600 mt-1">{notif.time}</p>
+                                </div>
+                                {!notif.read && (
+                                  <div className="w-2 h-2 bg-violet-400 rounded-full flex-shrink-0 mt-1.5" />
+                                )}
+                              </div>
+                            ))
+                          )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="px-4 py-2.5 border-t border-white/10 text-center">
+                          <button className="text-xs text-violet-400 hover:text-violet-300 transition-colors">
+                            View all notifications
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               )}
 
               {/* Write CTA */}
@@ -176,7 +274,7 @@ export default function Navbar({ onSearch }) {
                 /* Profile Dropdown */
                 <div ref={profileRef} className="relative hidden sm:block">
                   <button
-                    onClick={() => setProfileOpen(!profileOpen)}
+                    onClick={() => { setProfileOpen(!profileOpen); setNotifOpen(false); }}
                     className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
                   >
                     {user.photoURL
