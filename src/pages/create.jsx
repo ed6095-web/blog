@@ -3,8 +3,8 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { motion } from 'framer-motion';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../lib/firebase';
+import { uploadToCloudinary } from '../lib/cloudinary';
+import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
@@ -56,9 +56,7 @@ export default function CreatePage() {
     try {
       let uploadedCoverUrl = coverImage;
       if (coverFile) {
-        const coverRef = ref(storage, `covers/${user.uid}/${Date.now()}_${coverFile.name}`);
-        await uploadBytes(coverRef, coverFile);
-        uploadedCoverUrl = await getDownloadURL(coverRef);
+        uploadedCoverUrl = await uploadToCloudinary(coverFile);
       }
 
       const doc = await addDoc(collection(db, 'posts'), {

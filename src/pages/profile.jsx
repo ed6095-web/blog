@@ -3,11 +3,11 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  collection, query, where, orderBy, getDocs,
+  collection, query, where, getDocs,
   doc, getDoc, setDoc, serverTimestamp,
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage, auth } from '../lib/firebase';
+import { uploadToCloudinary } from '../lib/cloudinary';
+import { db, auth } from '../lib/firebase';
 import { updateProfile as fbUpdateProfile } from 'firebase/auth';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
@@ -99,11 +99,13 @@ export default function ProfilePage() {
       try {
         const q = query(
           collection(db, 'posts'),
-          where('authorId', '==', user.uid),
-          orderBy('createdAt', 'desc')
+          where('authorId', '==', user.uid)
         );
         const snap = await getDocs(q);
-        setPosts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        const fetchedPosts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        // Sort client-side to avoid Firestore composite index requirement
+        fetchedPosts.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+        setPosts(fetchedPosts);
       } catch (e) {
         console.error(e);
       } finally {
@@ -137,16 +139,12 @@ export default function ProfilePage() {
 
       // Upload avatar if changed
       if (photoFile) {
-        const avatarRef = ref(storage, `avatars/${user.uid}/${Date.now()}_${photoFile.name}`);
-        await uploadBytes(avatarRef, photoFile);
-        newPhotoURL = await getDownloadURL(avatarRef);
+        newPhotoURL = await uploadToCloudinary(photoFile);
       }
 
       // Upload banner if changed
       if (bannerFile) {
-        const bRef = ref(storage, `banners/${user.uid}/${Date.now()}_${bannerFile.name}`);
-        await uploadBytes(bRef, bannerFile);
-        newBannerURL = await getDownloadURL(bRef);
+        newBannerURL = await uploadToCloudinary(bannerFile);
       }
 
       // Update Firebase Auth profile
@@ -243,8 +241,8 @@ export default function ProfilePage() {
 
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Avatar + Info Row */}
-          <div className="relative -mt-16 mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-            <div className="flex items-end gap-4">
+          <div className="relative -mt-16 mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 px-2 sm:px-0">
+            <div className="flex flex-col sm:flex-row sm:items-end gap-5">
               {/* Avatar */}
               <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
@@ -292,12 +290,12 @@ export default function ProfilePage() {
                 )}
               </motion.div>
 
-              <div className="pb-2">
+              <div className="pb-2 pt-2 sm:pt-0">
                 {editing ? (
                   <input
                     value={displayName}
                     onChange={e => setDisplayName(e.target.value)}
-                    className="input-base text-xl font-bold w-48 mb-1"
+                    className="input-base text-xl font-bold w-full sm:w-64 mb-1"
                     placeholder="Your name"
                     autoFocus
                   />

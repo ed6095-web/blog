@@ -1,41 +1,31 @@
-// src/lib/cloudinary.js
-export async function uploadImagesToCloudinary(images) {
-  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-  const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
-
-  console.log("dowtiuicx:", cloudName);
-  console.log("Upload Preset:", uploadPreset);
-
-  if (!cloudName || !uploadPreset) {
-    throw new Error("Cloudinary configuration missing in .env.local");
+export const uploadToCloudinary = async (file) => {
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'YOUR_CLOUD_NAME';
+  const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'YOUR_UPLOAD_PRESET';
+  
+  if (cloudName === 'YOUR_CLOUD_NAME' || uploadPreset === 'YOUR_UPLOAD_PRESET') {
+    throw new Error('Cloudinary environment variables are missing! Please set NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME and NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET in your .env.local file.');
   }
 
-  const uploadPromises = images.map(async (image, index) => {
-    const formData = new FormData();
-    formData.append("file", image);
-    formData.append("upload_preset", uploadPreset);
-    formData.append("folder", "blog-posts");
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', uploadPreset);
 
-    console.log(`Uploading image ${index + 1}...`);
-
-    const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
-      {
-        method: "POST",
-        body: formData,
-      }
-    );
-
-    const data = await response.json();
-    console.log("Upload response:", data);
-
-    if (!response.ok) {
-      console.error("Upload error:", data);
-      throw new Error(`Failed to upload image: ${data.error?.message || 'Unknown error'}`);
+  try {
+    // /auto/upload automatically detects whether it is an image or a video
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    
+    const data = await res.json();
+    if (data.secure_url) {
+      return data.secure_url;
+    } else {
+      console.error('Cloudinary Error:', data);
+      throw new Error(data.error?.message || 'Failed to upload to Cloudinary');
     }
-
-    return data.secure_url;
-  });
-
-  return await Promise.all(uploadPromises);
-}
+  } catch (error) {
+    console.error('Upload Error:', error);
+    throw new Error('Upload failed. Check your internet connection or Cloudinary settings.');
+  }
+};
