@@ -10,12 +10,6 @@ import { SparklesIcon } from '@heroicons/react/24/solid';
 
 const TOPICS = ['Technology', 'Design', 'Culture', 'Health', 'Science', 'Mental Health', 'Startups', 'Climate'];
 
-const STATS = [
-  { value: '12K+', label: 'Posts published' },
-  { value: '4.2K', label: 'Active writers' },
-  { value: '89K+', label: 'Monthly readers' },
-];
-
 // Floating particle component
 function Particle({ style, size = 8, color }) {
   return (
@@ -102,7 +96,7 @@ export default function HeroSection({ onTopicSelect }) {
                 className="btn-primary px-8 py-4 text-base flex items-center gap-2 shadow-glow"
               >
                 <PencilIcon className="w-5 h-5" />
-                Start Writing Free
+                Start Writing
               </motion.button>
             </Link>
             <Link href="#feed">
@@ -115,16 +109,6 @@ export default function HeroSection({ onTopicSelect }) {
                 <ArrowRightIcon className="w-4 h-4" />
               </motion.button>
             </Link>
-          </motion.div>
-
-          {/* Stats */}
-          <motion.div variants={itemVariants} className="flex items-center gap-8 sm:gap-12 pt-2">
-            {STATS.map(({ value, label }) => (
-              <div key={label} className="text-center">
-                <p className="font-grotesk text-2xl sm:text-3xl font-bold gradient-text-static">{value}</p>
-                <p className="text-xs sm:text-sm text-gray-400 mt-0.5">{label}</p>
-              </div>
-            ))}
           </motion.div>
 
           {/* Trending Topics */}
