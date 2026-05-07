@@ -2,12 +2,9 @@ import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  collection, query, where, getDocs, addDoc, serverTimestamp,
-  doc, getDoc, updateDoc, arrayUnion, arrayRemove
-} from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import Navbar from '../../components/Navbar';
 import PostCard from '../../components/PostCard';
 import SkeletonCard from '../../components/SkeletonCard';
@@ -102,8 +99,8 @@ export default function PublicProfilePage() {
 
       if (!isFollowing) {
         // Follow: add currentUser.uid to target's followers, target id to currentUser's following
-        await updateDoc(targetUserRef, { followers: arrayUnion(currentUser.uid) });
-        await updateDoc(currentUserRef, { following: arrayUnion(id) });
+        await setDoc(targetUserRef, { followers: arrayUnion(currentUser.uid) }, { merge: true });
+        await setDoc(currentUserRef, { following: arrayUnion(id) }, { merge: true });
         
         await addDoc(collection(db, 'notifications'), {
           recipientId: id,
@@ -116,8 +113,8 @@ export default function PublicProfilePage() {
         });
       } else {
         // Unfollow
-        await updateDoc(targetUserRef, { followers: arrayRemove(currentUser.uid) });
-        await updateDoc(currentUserRef, { following: arrayRemove(id) });
+        await setDoc(targetUserRef, { followers: arrayRemove(currentUser.uid) }, { merge: true });
+        await setDoc(currentUserRef, { following: arrayRemove(id) }, { merge: true });
       }
     } catch (e) {
       console.error("Error toggling follow:", e);

@@ -38,6 +38,8 @@ export default function PostPage() {
   const [commentText, setCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
   const [readProgress, setReadProgress] = useState(0);
+  const [isLiking, setIsLiking] = useState(false);
+  const [authorPhoto, setAuthorPhoto] = useState('');
 
   // Reading progress bar
   useEffect(() => {
@@ -69,6 +71,16 @@ export default function PostPage() {
             setLiked(false);
           }
 
+          // Fetch real author profile photo
+          if (data.authorId) {
+            const authorSnap = await getDoc(doc(db, 'profiles', data.authorId));
+            if (authorSnap.exists()) {
+              setAuthorPhoto(authorSnap.data().photoURL || data.authorPhoto || '');
+            } else {
+              setAuthorPhoto(data.authorPhoto || '');
+            }
+          }
+
           // Increment views
           await updateDoc(ref, { views: increment(1) });
         }
@@ -97,19 +109,24 @@ export default function PostPage() {
 
   const handleLike = async () => {
     if (!user) { router.push('/auth/login'); return; }
+    if (isLiking) return;
     
+    setIsLiking(true);
+    const newLiked = !liked;
     // Optimistic UI update
-    setLiked(v => !v);
-    setLikeCount(c => !liked ? c + 1 : c - 1);
+    setLiked(newLiked);
+    setLikeCount(c => newLiked ? c + 1 : c - 1);
     
     try {
       await updateDoc(doc(db, 'posts', id), { 
-        likedBy: !liked ? arrayUnion(user.uid) : arrayRemove(user.uid) 
+        likedBy: newLiked ? arrayUnion(user.uid) : arrayRemove(user.uid) 
       });
     } catch (e) { 
       console.error("Error liking post:", e);
-      setLiked(v => !v);
-      setLikeCount(c => !liked ? c - 1 : c + 1);
+      setLiked(!newLiked);
+      setLikeCount(c => newLiked ? c - 1 : c + 1);
+    } finally {
+      setIsLiking(false);
     }
   };
 
@@ -216,8 +233,8 @@ export default function PostPage() {
           {/* Author + Meta */}
           <div className="flex items-center gap-4 mb-8 pb-8 border-b border-gray-200 dark:border-white/[0.06]">
             <Link href={`/user/${post.authorId}`}>
-              {post.authorPhoto
-                ? <img src={post.authorPhoto} alt={post.authorName} className="w-12 h-12 rounded-full object-cover ring-2 ring-wavvy-primary2/20 hover:ring-wavvy-primary transition-all" />
+              {authorPhoto
+                ? <img src={authorPhoto} alt={post.authorName} className="w-12 h-12 rounded-full object-cover ring-2 ring-wavvy-primary2/20 hover:ring-wavvy-primary transition-all" />
                 : <div className="w-12 h-12 rounded-full bg-wavvy-gradient flex items-center justify-center text-white font-bold ring-2 ring-wavvy-primary2/20 hover:ring-wavvy-primary transition-all">
                     {(post.authorName || '?')[0].toUpperCase()}
                   </div>

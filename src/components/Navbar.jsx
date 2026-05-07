@@ -71,13 +71,19 @@ export default function Navbar({ onSearch }) {
       setNotifications([]);
       return;
     }
+    // Remove orderBy to avoid composite index requirement
     const q = query(
       collection(db, 'notifications'),
-      where('recipientId', '==', user.uid),
-      orderBy('createdAt', 'desc')
+      where('recipientId', '==', user.uid)
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const notifs = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+      // Sort client-side
+      notifs.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis?.() || 0;
+        const timeB = b.createdAt?.toMillis?.() || 0;
+        return timeB - timeA;
+      });
       setNotifications(notifs);
     }, (error) => {
       console.error('Error fetching notifications:', error);

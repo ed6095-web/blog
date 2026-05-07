@@ -61,6 +61,7 @@ export default function ProfilePage() {
   const [bannerPreview, setBannerPreview] = useState(null);
   const [bannerFile, setBannerFile] = useState(null);
   const [bannerURL, setBannerURL] = useState('');
+  const [photoURL, setPhotoURL] = useState(user.photoURL || '');
 
   const avatarInputRef = useRef(null);
   const bannerInputRef = useRef(null);
@@ -80,6 +81,7 @@ export default function ProfilePage() {
           setBio(data.bio || '');
           setWebsite(data.website || '');
           setBannerURL(data.bannerURL || '');
+          setPhotoURL(data.photoURL || user.photoURL || '');
           setFollowerCount(data.followers?.length || 0);
           setFollowingCount(data.following?.length || 0);
         }
@@ -160,11 +162,15 @@ export default function ProfilePage() {
       // Save extra fields to Firestore
       await setDoc(doc(db, 'profiles', user.uid), {
         displayName: displayName || user.displayName,
+        photoURL: newPhotoURL,
         bio,
         website,
         bannerURL: newBannerURL,
         updatedAt: serverTimestamp(),
       }, { merge: true });
+
+      setPhotoURL(newPhotoURL);
+      setBannerURL(newBannerURL);
 
       setBannerURL(newBannerURL);
       setPhotoFile(null);
@@ -194,7 +200,7 @@ export default function ProfilePage() {
     ? format(new Date(user.metadata.creationTime), 'MMMM yyyy')
     : null;
 
-  const avatarSrc = photoPreview || user.photoURL;
+  const avatarSrc = photoPreview || photoURL || user.photoURL;
   const bannerSrc = bannerPreview || bannerURL;
 
   return (

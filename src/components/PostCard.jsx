@@ -14,7 +14,7 @@ import {
 } from '@heroicons/react/24/solid';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
-import { doc, updateDoc, arrayUnion, arrayRemove, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, arrayUnion, arrayRemove, collection, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 const CATEGORY_COLORS = {
@@ -46,6 +46,8 @@ export default function PostCard({ post }) {
   const { user } = useAuth();
   const [liked, setLiked] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
+  const [isLiking, setIsLiking] = useState(false);
+  const [authorProfile, setAuthorProfile] = useState(null);
   
   // Backward compatibility: handle both 'likes' integer and 'likedBy' array
   const [likeCount, setLikeCount] = useState(post?.likedBy?.length || post?.likes || 0);
@@ -56,6 +58,15 @@ export default function PostCard({ post }) {
     } else {
       setLiked(false);
     }
+
+    // Fetch latest author photo if not in post data
+    if (!post.authorPhoto && post.authorId) {
+      const fetchAuthor = async () => {
+        const snap = await getDoc(doc(db, 'profiles', post.authorId));
+        if (snap.exists()) setAuthorProfile(snap.data());
+      };
+      fetchAuthor();
+    }
   }, [user, post]);
 
   if (!post) return null;
@@ -65,16 +76,21 @@ export default function PostCard({ post }) {
 
   const handleLike = async (e) => {
     e.preventDefault();
-    if (!user) return; // Must be logged in to like
+    if (!user || isLiking) return;
+    
+    setIsLiking(true);
+    const wasLiked = liked;
     
     // Optimistic UI update
-    setLiked(v => !v);
-    setLikeCount(c => !liked ? c + 1 : c - 1);
+    setLiked(!wasLiked);
+    setLikeCount(c => !wasLiked ? c + 1 : c - 1);
 
     try {
       const postRef = doc(db, 'posts', post.id);
-      if (!liked) {
-        await updateDoc(postRef, { likedBy: arrayUnion(user.uid) });
+      if (!wasLiked) {
+        // Use setDoc with merge: true for safety, though updateDoc is usually fine for posts
+        await setDoc(postRef, { likedBy: arrayUnion(user.uid) }, { merge: true });
+        
         if (user.uid !== post.authorId) {
           await addDoc(collection(db, 'notifications'), {
             recipientId: post.authorId,
@@ -87,13 +103,15 @@ export default function PostCard({ post }) {
           });
         }
       } else {
-        await updateDoc(postRef, { likedBy: arrayRemove(user.uid) });
+        await setDoc(postRef, { likedBy: arrayRemove(user.uid) }, { merge: true });
       }
     } catch (error) {
       console.error("Error toggling like:", error);
       // Revert on failure
-      setLiked(v => !v);
-      setLikeCount(c => !liked ? c - 1 : c + 1);
+      setLiked(wasLiked);
+      setLikeCount(c => !wasLiked ? c - 1 : c + 1);
+    } finally {
+      setIsLiking(false);
     }
   };
 
@@ -165,8 +183,8 @@ export default function PostCard({ post }) {
       <div className="px-5 pb-4 flex items-center justify-between mt-auto">
         {/* Author */}
         <Link href={`/user/${post.authorId}`} className="flex items-center gap-2 min-w-0 group/author" onClick={(e) => e.stopPropagation()}>
-          {post.authorPhoto ? (
-            <img src={post.authorPhoto} alt={post.authorName} className="w-7 h-7 rounded-full object-cover flex-shrink-0 ring-2 ring-transparent group-hover/author:ring-wavvy-primary transition-all" />
+          {(authorProfile?.photoURL || post.authorPhoto) ? (
+            <img src={authorProfile?.photoURL || post.authorPhoto} alt={post.authorName} className="w-7 h-7 rounded-full object-cover flex-shrink-0 ring-2 ring-transparent group-hover/author:ring-wavvy-primary transition-all" />
           ) : (
             <div className="w-7 h-7 rounded-full bg-wavvy-gradient flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ring-2 ring-transparent group-hover/author:ring-wavvy-primary transition-all">
               {(post.authorName || '?')[0].toUpperCase()}
