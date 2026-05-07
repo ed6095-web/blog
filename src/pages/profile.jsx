@@ -206,7 +206,10 @@ export default function ProfilePage() {
         <Navbar />
 
         {/* Profile Banner */}
-        <div className="relative h-48 sm:h-64 overflow-hidden group">
+        <div
+          className={`relative h-48 sm:h-64 overflow-hidden ${editing ? 'cursor-pointer' : ''}`}
+          onClick={editing ? () => bannerInputRef.current?.click() : undefined}
+        >
           {bannerSrc ? (
             <img src={bannerSrc} alt="Profile banner" className="w-full h-full object-cover" />
           ) : (
@@ -218,7 +221,7 @@ export default function ProfilePage() {
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
 
-          {/* Banner upload button */}
+          {/* Banner upload button — visible when editing */}
           {editing && (
             <>
               <input
@@ -228,15 +231,12 @@ export default function ProfilePage() {
                 className="hidden"
                 onChange={handleBannerChange}
               />
-              <button
-                onClick={() => bannerInputRef.current?.click()}
-                className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-              >
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40">
                 <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-medium border border-white/30">
                   <PhotoIcon className="w-4 h-4" />
-                  Change Banner
+                  {bannerFile ? `✓ ${bannerFile.name}` : 'Click to change banner'}
                 </div>
-              </button>
+              </div>
             </>
           )}
         </div>
@@ -250,7 +250,9 @@ export default function ProfilePage() {
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ type: 'spring', stiffness: 200 }}
-                className="relative group"
+                className="relative"
+                onClick={editing ? () => avatarInputRef.current?.click() : undefined}
+                style={{ cursor: editing ? 'pointer' : 'default' }}
               >
                 {avatarSrc ? (
                   <img
@@ -264,7 +266,7 @@ export default function ProfilePage() {
                   </div>
                 )}
 
-                {/* Avatar upload overlay */}
+                {/* Avatar upload overlay — always visible when editing */}
                 {editing && (
                   <>
                     <input
@@ -274,18 +276,20 @@ export default function ProfilePage() {
                       className="hidden"
                       onChange={handleAvatarChange}
                     />
-                    <button
-                      onClick={() => avatarInputRef.current?.click()}
-                      className="absolute inset-0 rounded-2xl flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 border-4 border-white dark:border-slate-900"
-                    >
-                      <CameraIcon className="w-7 h-7 text-white" />
-                    </button>
+                    <div className="absolute inset-0 rounded-2xl flex items-center justify-center bg-black/50 border-4 border-white dark:border-slate-900">
+                      <div className="flex flex-col items-center gap-1">
+                        <CameraIcon className="w-7 h-7 text-white" />
+                        {photoFile && <span className="text-white text-[10px] font-medium">✓ Selected</span>}
+                      </div>
+                    </div>
                   </>
                 )}
 
-                <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-green-400 rounded-full border-3 border-white dark:border-slate-900 flex items-center justify-center">
-                  <SparklesIcon className="w-4 h-4 text-white" />
-                </div>
+                {!editing && (
+                  <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-green-400 rounded-full border-3 border-white dark:border-slate-900 flex items-center justify-center">
+                    <SparklesIcon className="w-4 h-4 text-white" />
+                  </div>
+                )}
               </motion.div>
 
               <div className="pb-2">

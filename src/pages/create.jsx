@@ -3,7 +3,8 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { motion } from 'framer-motion';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
@@ -28,7 +29,9 @@ export default function CreatePage() {
   const [tags, setTags] = useState([]);
   const [tagInput, setTagInput] = useState('');
   const [coverImage, setCoverImage] = useState('');
+  const [coverFile, setCoverFile] = useState(null);
   const [publishing, setPublishing] = useState(false);
+  const coverInputRef = useRef(null);
   const [preview, setPreview] = useState(false);
   const [error, setError] = useState('');
   const [lastSaved, setLastSaved] = useState(null);
@@ -51,12 +54,19 @@ export default function CreatePage() {
     setPublishing(true);
     setError('');
     try {
+      let uploadedCoverUrl = coverImage;
+      if (coverFile) {
+        const coverRef = ref(storage, `covers/${user.uid}/${Date.now()}_${coverFile.name}`);
+        await uploadBytes(coverRef, coverFile);
+        uploadedCoverUrl = await getDownloadURL(coverRef);
+      }
+
       const doc = await addDoc(collection(db, 'posts'), {
         title: title.trim(),
         content: content.trim(),
         category,
         tags,
-        coverImage,
+        coverImage: uploadedCoverUrl,
         authorId: user.uid,
         authorName: user.displayName || user.email,
         authorPhoto: user.photoURL || '',
@@ -145,16 +155,28 @@ export default function CreatePage() {
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-8">
             {/* Editor */}
             <div className="space-y-4">
-              {/* Cover Image URL */}
-              <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-800/60 border border-gray-200 dark:border-white/[0.06]">
+              {/* Cover Image Upload */}
+              <div 
+                className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-800/60 border border-gray-200 dark:border-white/[0.06] cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+                onClick={() => coverInputRef.current?.click()}
+              >
                 <PhotoIcon className="w-5 h-5 text-gray-400 flex-shrink-0" />
                 <input
-                  type="url"
-                  value={coverImage}
-                  onChange={e => setCoverImage(e.target.value)}
-                  placeholder="Cover image URL (optional)"
-                  className="flex-1 bg-transparent text-sm text-gray-700 dark:text-gray-300 placeholder-gray-400 outline-none"
+                  ref={coverInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setCoverFile(file);
+                      setCoverImage(URL.createObjectURL(file));
+                    }
+                  }}
                 />
+                <span className="flex-1 text-sm text-gray-500 dark:text-gray-400">
+                  {coverFile ? coverFile.name : 'Add a cover image...'}
+                </span>
               </div>
 
               {/* Cover preview */}
@@ -162,7 +184,10 @@ export default function CreatePage() {
                 <div className="relative rounded-xl overflow-hidden aspect-[16/7]">
                   <img src={coverImage} alt="Cover" className="w-full h-full object-cover" />
                   <button
-                    onClick={() => setCoverImage('')}
+                    onClick={() => {
+                      setCoverImage('');
+                      setCoverFile(null);
+                    }}
                     className="absolute top-3 right-3 p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70"
                   >
                     <XMarkIcon className="w-4 h-4" />

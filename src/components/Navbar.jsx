@@ -194,7 +194,7 @@ export default function Navbar({ onSearch }) {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -8, scale: 0.96 }}
                         transition={{ duration: 0.15 }}
-                        className="absolute right-0 top-full mt-2 w-80 rounded-2xl overflow-hidden shadow-2xl"
+                        className="absolute right-[-10px] sm:right-0 top-full mt-2 w-[320px] sm:w-80 rounded-2xl overflow-hidden shadow-2xl z-[100] origin-top-right max-w-[calc(100vw-2rem)]"
                         style={{ background: 'rgba(10,10,20,0.97)', border: '1px solid rgba(255,255,255,0.1)' }}
                       >
                         {/* Header */}
