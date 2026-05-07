@@ -33,8 +33,6 @@ import { format } from 'date-fns';
 
 const TABS = [
   { id: 'posts', label: 'Posts', icon: BookOpenIcon },
-  { id: 'liked', label: 'Liked', icon: HeartIcon },
-  { id: 'saved', label: 'Saved', icon: BookmarkIcon },
   { id: 'about', label: 'About', icon: UserCircleIcon },
 ];
 
@@ -52,6 +50,10 @@ export default function ProfilePage() {
   const [website, setWebsite] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  
+  // Follow stats
+  const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
 
   // photo states
   const [photoPreview, setPhotoPreview] = useState(null);
@@ -78,6 +80,8 @@ export default function ProfilePage() {
           setBio(data.bio || '');
           setWebsite(data.website || '');
           setBannerURL(data.bannerURL || '');
+          setFollowerCount(data.followers?.length || 0);
+          setFollowingCount(data.following?.length || 0);
         }
       } catch (e) {
         console.error('Profile fetch error:', e);
@@ -220,28 +224,25 @@ export default function ProfilePage() {
 
           {/* Banner upload button — visible when editing */}
           {editing && (
-            <>
+            <div className="absolute inset-0 flex items-center justify-center bg-black/40">
               <input
-                ref={bannerInputRef}
                 type="file"
                 accept="image/*"
-                className="hidden"
+                className="absolute inset-0 opacity-0 cursor-pointer z-10"
                 onChange={handleBannerChange}
               />
-              <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-medium border border-white/30">
-                  <PhotoIcon className="w-4 h-4" />
-                  {bannerFile ? `✓ ${bannerFile.name}` : 'Click to change banner'}
-                </div>
+              <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-medium border border-white/30 pointer-events-none">
+                <PhotoIcon className="w-4 h-4" />
+                {bannerFile ? `✓ ${bannerFile.name}` : 'Click to change banner'}
               </div>
-            </>
+            </div>
           )}
         </div>
 
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Avatar + Info Row */}
-          <div className="relative -mt-16 mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
-            <div className="flex flex-col sm:flex-row sm:items-end gap-5">
+          <div className="relative -mt-16 mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 px-2 sm:px-0">
+            <div className="flex flex-col sm:flex-row sm:items-end gap-5 flex-1 min-w-0">
               {/* Avatar */}
               <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
@@ -265,21 +266,18 @@ export default function ProfilePage() {
 
                 {/* Avatar upload overlay — always visible when editing */}
                 {editing && (
-                  <>
+                  <div className="absolute inset-0 rounded-2xl flex items-center justify-center bg-black/50 border-4 border-white dark:border-slate-900 overflow-hidden">
                     <input
-                      ref={avatarInputRef}
                       type="file"
                       accept="image/*"
-                      className="hidden"
+                      className="absolute inset-0 opacity-0 cursor-pointer z-10"
                       onChange={handleAvatarChange}
                     />
-                    <div className="absolute inset-0 rounded-2xl flex items-center justify-center bg-black/50 border-4 border-white dark:border-slate-900">
-                      <div className="flex flex-col items-center gap-1">
-                        <CameraIcon className="w-7 h-7 text-white" />
-                        {photoFile && <span className="text-white text-[10px] font-medium">✓ Selected</span>}
-                      </div>
+                    <div className="flex flex-col items-center gap-1 pointer-events-none">
+                      <CameraIcon className="w-7 h-7 text-white" />
+                      {photoFile && <span className="text-white text-[10px] font-medium">✓ Selected</span>}
                     </div>
-                  </>
+                  </div>
                 )}
 
                 {!editing && (
@@ -289,23 +287,23 @@ export default function ProfilePage() {
                 )}
               </motion.div>
 
-              <div className="pb-2 pt-2 sm:pt-0">
+              <div className="pb-2 pt-2 sm:pt-0 flex-1 min-w-0">
                 {editing ? (
                   <input
                     value={displayName}
                     onChange={e => setDisplayName(e.target.value)}
-                    className="input-base text-xl font-bold w-full sm:w-64 mb-1"
+                    className="input-base text-xl font-bold w-full mb-1"
                     placeholder="Your name"
                     autoFocus
                   />
                 ) : (
-                  <h1 className="font-grotesk text-2xl font-bold text-gray-900 dark:text-white">
+                  <h1 className="font-grotesk text-2xl font-bold text-gray-900 dark:text-white truncate">
                     {user.displayName || 'Wavvy User'}
                   </h1>
                 )}
                 <p className="text-gray-400 text-sm truncate">{user.email}</p>
                 {bio && !editing && (
-                  <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 max-w-xs line-clamp-2">{bio}</p>
+                  <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 max-w-xl break-words">{bio}</p>
                 )}
               </div>
             </div>
@@ -371,11 +369,11 @@ export default function ProfilePage() {
               <p className="text-gray-400 text-xs">Posts</p>
             </div>
             <div className="text-center">
-              <p className="font-grotesk font-bold text-lg text-gray-900 dark:text-white">0</p>
+              <p className="font-grotesk font-bold text-lg text-gray-900 dark:text-white">{followerCount}</p>
               <p className="text-gray-400 text-xs">Followers</p>
             </div>
             <div className="text-center">
-              <p className="font-grotesk font-bold text-lg text-gray-900 dark:text-white">0</p>
+              <p className="font-grotesk font-bold text-lg text-gray-900 dark:text-white">{followingCount}</p>
               <p className="text-gray-400 text-xs">Following</p>
             </div>
             {joinedDate && (
@@ -431,19 +429,7 @@ export default function ProfilePage() {
                     </div>
               )}
 
-              {activeTab === 'liked' && (
-                <div className="text-center py-20 text-gray-400">
-                  <HeartIcon className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                  <p>Posts you&apos;ve liked will appear here.</p>
-                </div>
-              )}
 
-              {activeTab === 'saved' && (
-                <div className="text-center py-20 text-gray-400">
-                  <BookmarkIcon className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                  <p>Your bookmarked posts will appear here.</p>
-                </div>
-              )}
 
               {activeTab === 'about' && (
                 <div className="max-w-lg space-y-4">

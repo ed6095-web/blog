@@ -228,7 +228,9 @@ export default function Navbar({ onSearch }) {
               {/* Notification Bell */}
               {user && (
                 <div ref={notifRef} className="relative">
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
                     onClick={() => { setNotifOpen(!notifOpen); setProfileOpen(false); }}
                     className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors relative"
                     aria-label="Notifications"
@@ -239,7 +241,7 @@ export default function Navbar({ onSearch }) {
                         {unreadCount}
                       </span>
                     )}
-                  </button>
+                  </motion.button>
 
                   <AnimatePresence>
                     {notifOpen && (
@@ -248,7 +250,7 @@ export default function Navbar({ onSearch }) {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -8, scale: 0.96 }}
                         transition={{ duration: 0.15 }}
-                        className="absolute right-[-10px] sm:right-0 top-full mt-2 w-[320px] sm:w-80 rounded-2xl overflow-hidden shadow-2xl z-[100] origin-top-right max-w-[calc(100vw-2rem)] bg-white dark:bg-slate-900 border border-gray-100 dark:border-white/10"
+                        className="fixed sm:absolute top-16 sm:top-full left-4 right-4 sm:left-auto sm:right-0 sm:mt-2 sm:w-80 rounded-2xl overflow-hidden shadow-2xl z-[100] origin-top sm:origin-top-right bg-white dark:bg-slate-900 border border-gray-100 dark:border-white/10"
                       >
                         {/* Header */}
                         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-white/10">
@@ -278,17 +280,17 @@ export default function Navbar({ onSearch }) {
                                 onClick={() => handleNotifClick(notif)}
                                 className={`flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-white/5 ${!notif.read ? 'bg-violet-50 dark:bg-violet-500/5' : ''}`}
                               >
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${!notif.read ? 'bg-violet-100 dark:bg-white/10' : 'bg-gray-100 dark:bg-white/5'}`}>
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm ${!notif.read ? 'bg-wavvy-gradient text-white' : 'bg-gray-100 dark:bg-white/5 text-gray-500'}`}>
                                   {notifIcon(notif.type)}
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className={`text-xs leading-relaxed ${!notif.read ? 'text-gray-900 dark:text-white font-medium' : 'text-gray-600 dark:text-gray-400'}`}>
+                                <div className="flex-1 min-w-0 py-1">
+                                  <p className={`text-sm leading-snug ${!notif.read ? 'text-gray-900 dark:text-white font-semibold' : 'text-gray-600 dark:text-gray-400'}`}>
                                     {notif.text}
                                   </p>
-                                  <p className="text-[10px] text-gray-500 dark:text-gray-600 mt-1">{formatTime(notif.createdAt)}</p>
+                                  <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 mt-1 uppercase tracking-wider">{formatTime(notif.createdAt)}</p>
                                 </div>
                                 {!notif.read && (
-                                  <div className="w-2 h-2 bg-violet-500 dark:bg-violet-400 rounded-full flex-shrink-0 mt-1.5" />
+                                  <div className="w-2.5 h-2.5 bg-pink-500 rounded-full flex-shrink-0 mt-2.5 shadow-[0_0_8px_rgba(236,72,153,0.5)]" />
                                 )}
                               </div>
                             ))

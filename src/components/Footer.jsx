@@ -113,7 +113,7 @@ export default function Footer() {
         {/* Bottom bar */}
         <div className="mt-12 pt-8 border-t border-gray-200/60 dark:border-white/[0.06] flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-gray-400 flex items-center gap-1">
-            Made with <HeartIcon className="w-3 h-3 text-wavvy-accent inline" /> by the Wavvy team · © {new Date().getFullYear()}
+            Made with <HeartIcon className="w-3 h-3 text-wavvy-accent inline" /> by Eashan Darsh · © {new Date().getFullYear()}
           </p>
           <div className="flex items-center gap-4">
             {SOCIALS.map(({ label, href, icon }) => (

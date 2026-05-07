@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
@@ -13,6 +13,9 @@ import {
   BookmarkIcon as BookmarkSolid,
 } from '@heroicons/react/24/solid';
 import { format } from 'date-fns';
+import { useAuth } from '../context/AuthContext';
+import { doc, updateDoc, arrayUnion, arrayRemove, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 const CATEGORY_COLORS = {
   Technology: 'bg-blue-500/15 text-blue-400 border border-blue-500/20',
@@ -40,19 +43,58 @@ function formatDate(ts) {
 }
 
 export default function PostCard({ post }) {
+  const { user } = useAuth();
   const [liked, setLiked] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
-  const [likeCount, setLikeCount] = useState(post?.likes || 0);
+  
+  // Backward compatibility: handle both 'likes' integer and 'likedBy' array
+  const [likeCount, setLikeCount] = useState(post?.likedBy?.length || post?.likes || 0);
+
+  useEffect(() => {
+    if (user && post?.likedBy?.includes(user.uid)) {
+      setLiked(true);
+    } else {
+      setLiked(false);
+    }
+  }, [user, post]);
 
   if (!post) return null;
 
   const categoryColor = CATEGORY_COLORS[post.category] || CATEGORY_COLORS.default;
   const readTime = estimateReadingTime(post.content);
 
-  const handleLike = (e) => {
+  const handleLike = async (e) => {
     e.preventDefault();
+    if (!user) return; // Must be logged in to like
+    
+    // Optimistic UI update
     setLiked(v => !v);
-    setLikeCount(c => liked ? c - 1 : c + 1);
+    setLikeCount(c => !liked ? c + 1 : c - 1);
+
+    try {
+      const postRef = doc(db, 'posts', post.id);
+      if (!liked) {
+        await updateDoc(postRef, { likedBy: arrayUnion(user.uid) });
+        if (user.uid !== post.authorId) {
+          await addDoc(collection(db, 'notifications'), {
+            recipientId: post.authorId,
+            senderId: user.uid,
+            type: 'like',
+            text: `${user.displayName || 'Someone'} liked your post "${post.title}"`,
+            link: `/post/${post.id}`,
+            createdAt: serverTimestamp(),
+            read: false
+          });
+        }
+      } else {
+        await updateDoc(postRef, { likedBy: arrayRemove(user.uid) });
+      }
+    } catch (error) {
+      console.error("Error toggling like:", error);
+      // Revert on failure
+      setLiked(v => !v);
+      setLikeCount(c => !liked ? c - 1 : c + 1);
+    }
   };
 
   const handleBookmark = (e) => {
@@ -122,19 +164,19 @@ export default function PostCard({ post }) {
       {/* Footer */}
       <div className="px-5 pb-4 flex items-center justify-between mt-auto">
         {/* Author */}
-        <div className="flex items-center gap-2 min-w-0">
+        <Link href={`/user/${post.authorId}`} className="flex items-center gap-2 min-w-0 group/author" onClick={(e) => e.stopPropagation()}>
           {post.authorPhoto ? (
-            <img src={post.authorPhoto} alt={post.authorName} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+            <img src={post.authorPhoto} alt={post.authorName} className="w-7 h-7 rounded-full object-cover flex-shrink-0 ring-2 ring-transparent group-hover/author:ring-wavvy-primary transition-all" />
           ) : (
-            <div className="w-7 h-7 rounded-full bg-wavvy-gradient flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+            <div className="w-7 h-7 rounded-full bg-wavvy-gradient flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ring-2 ring-transparent group-hover/author:ring-wavvy-primary transition-all">
               {(post.authorName || '?')[0].toUpperCase()}
             </div>
           )}
           <div className="min-w-0">
-            <p className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">{post.authorName || 'Anonymous'}</p>
+            <p className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate group-hover/author:text-wavvy-primary transition-colors">{post.authorName || 'Anonymous'}</p>
             <p className="text-[11px] text-gray-400">{formatDate(post.createdAt)}</p>
           </div>
-        </div>
+        </Link>
 
         {/* Actions */}
         <div className="flex items-center gap-3 flex-shrink-0">

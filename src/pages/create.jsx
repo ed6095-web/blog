@@ -35,6 +35,7 @@ export default function CreatePage() {
   const [preview, setPreview] = useState(false);
   const [error, setError] = useState('');
   const [lastSaved, setLastSaved] = useState(null);
+  const contentImageInputRef = useRef(null);
 
   const addTag = () => {
     const t = tagInput.trim().toLowerCase().replace(/\s+/g, '-');
@@ -204,10 +205,50 @@ export default function CreatePage() {
 
               <div className="border-t border-gray-200 dark:border-white/[0.06]" />
 
+              {/* Content Editor Toolbar */}
+              {!preview && (
+                <div className="flex items-center gap-2 mb-2">
+                  <button
+                    onClick={() => contentImageInputRef.current?.click()}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-white/[0.06] text-gray-600 dark:text-gray-400 text-xs font-medium hover:bg-gray-200 dark:hover:bg-white/10 transition-colors"
+                    title="Add image to content"
+                  >
+                    <PhotoIcon className="w-4 h-4" />
+                    Add Image
+                  </button>
+                  <input
+                    ref={contentImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        try {
+                          const url = await uploadToCloudinary(file);
+                          setContent(prev => prev + `\n\n![Image](${url})\n\n`);
+                        } catch (err) {
+                          setError('Failed to upload image to content.');
+                        }
+                      }
+                    }}
+                  />
+                  <div className="h-4 w-[1px] bg-gray-200 dark:bg-white/10 mx-1" />
+                  <span className="text-[10px] text-gray-400 italic">Images will be appended to the end of your story</span>
+                </div>
+              )}
+
               {/* Content */}
               {preview ? (
                 <div className="post-content min-h-96 text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                  {content || <span className="text-gray-400 italic">Nothing to preview yet.</span>}
+                  {content.split('\n').map((line, i) => {
+                    if (line.match(/^!\[.*\]\(.*\)$/)) {
+                      const url = line.match(/\((.*)\)/)?.[1];
+                      return <img key={i} src={url} alt="Post content" className="my-6 rounded-2xl w-full" />;
+                    }
+                    return <p key={i} className={line ? 'mb-4' : 'h-4'}>{line}</p>;
+                  })}
+                  {!content && <span className="text-gray-400 italic">Nothing to preview yet.</span>}
                 </div>
               ) : (
                 <textarea

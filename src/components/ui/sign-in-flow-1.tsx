@@ -541,14 +541,28 @@ export const SignInPage = ({ className }: SignInPageProps) => {
     setLoading(true);
     try {
       const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
+      // provider.setCustomParameters({ prompt: 'select_account' }); // Removing this as it can cause popup to auto-close in some environments
       const result = await signInWithPopup(auth, provider);
       if (result.user) {
+        // Ensure profile exists in Firestore
+        const userRef = doc(db, 'profiles', result.user.uid);
+        const snap = await getDoc(userRef);
+        if (!snap.exists()) {
+          await setDoc(userRef, {
+            displayName: result.user.displayName || '',
+            bio: '',
+            website: '',
+            followers: [],
+            following: [],
+            updatedAt: serverTimestamp(),
+            createdAt: serverTimestamp(),
+          });
+        }
         router.replace('/');
       }
     } catch (err: any) {
       if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
-        setError(err.message || "Google login failed.");
+        setError(err.message || "Google login failed. Please ensure localhost is whitelisted in Firebase Auth.");
       }
       setLoading(false);
     }

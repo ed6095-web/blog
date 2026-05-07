@@ -3,7 +3,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { doc, getDoc, updateDoc, increment, collection, addDoc, getDocs, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, increment, collection, addDoc, getDocs, query, orderBy, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import Navbar from '../../components/Navbar';
@@ -61,7 +61,14 @@ export default function PostPage() {
         if (snap.exists()) {
           const data = { id: snap.id, ...snap.data() };
           setPost(data);
-          setLikeCount(data.likes || 0);
+          setLikeCount(data.likedBy?.length || data.likes || 0);
+          
+          if (user && data.likedBy?.includes(user.uid)) {
+            setLiked(true);
+          } else {
+            setLiked(false);
+          }
+
           // Increment views
           await updateDoc(ref, { views: increment(1) });
         }
@@ -72,7 +79,7 @@ export default function PostPage() {
       }
     };
     fetchPost();
-  }, [id]);
+  }, [id, user]);
 
   useEffect(() => {
     if (!id) return;
@@ -90,11 +97,20 @@ export default function PostPage() {
 
   const handleLike = async () => {
     if (!user) { router.push('/auth/login'); return; }
+    
+    // Optimistic UI update
     setLiked(v => !v);
-    setLikeCount(c => liked ? c - 1 : c + 1);
+    setLikeCount(c => !liked ? c + 1 : c - 1);
+    
     try {
-      await updateDoc(doc(db, 'posts', id), { likes: increment(liked ? -1 : 1) });
-    } catch (e) { console.error(e); }
+      await updateDoc(doc(db, 'posts', id), { 
+        likedBy: !liked ? arrayUnion(user.uid) : arrayRemove(user.uid) 
+      });
+    } catch (e) { 
+      console.error("Error liking post:", e);
+      setLiked(v => !v);
+      setLikeCount(c => !liked ? c - 1 : c + 1);
+    }
   };
 
   const handleComment = async () => {
@@ -199,17 +215,19 @@ export default function PostPage() {
 
           {/* Author + Meta */}
           <div className="flex items-center gap-4 mb-8 pb-8 border-b border-gray-200 dark:border-white/[0.06]">
-            <Link href="/profile">
+            <Link href={`/user/${post.authorId}`}>
               {post.authorPhoto
-                ? <img src={post.authorPhoto} alt={post.authorName} className="w-12 h-12 rounded-full object-cover ring-2 ring-wavvy-primary2/20" />
-                : <div className="w-12 h-12 rounded-full bg-wavvy-gradient flex items-center justify-center text-white font-bold">
+                ? <img src={post.authorPhoto} alt={post.authorName} className="w-12 h-12 rounded-full object-cover ring-2 ring-wavvy-primary2/20 hover:ring-wavvy-primary transition-all" />
+                : <div className="w-12 h-12 rounded-full bg-wavvy-gradient flex items-center justify-center text-white font-bold ring-2 ring-wavvy-primary2/20 hover:ring-wavvy-primary transition-all">
                     {(post.authorName || '?')[0].toUpperCase()}
                   </div>
               }
             </Link>
             <div className="flex-1">
-              <p className="font-semibold text-gray-900 dark:text-white">{post.authorName || 'Anonymous'}</p>
-              <div className="flex items-center gap-3 text-sm text-gray-400">
+              <Link href={`/user/${post.authorId}`} className="font-semibold text-gray-900 dark:text-white hover:text-wavvy-primary transition-colors">
+                {post.authorName || 'Anonymous'}
+              </Link>
+              <div className="flex items-center gap-3 text-sm text-gray-400 mt-1">
                 <span>{publishedDate}</span>
                 <span>·</span>
                 <span className="flex items-center gap-1">
