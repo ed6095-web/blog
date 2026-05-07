@@ -61,7 +61,7 @@ export default function ProfilePage() {
   const [bannerPreview, setBannerPreview] = useState(null);
   const [bannerFile, setBannerFile] = useState(null);
   const [bannerURL, setBannerURL] = useState('');
-  const [photoURL, setPhotoURL] = useState(user.photoURL || '');
+  const [photoURL, setPhotoURL] = useState('');
 
   const avatarInputRef = useRef(null);
   const bannerInputRef = useRef(null);
@@ -70,6 +70,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!user) return;
     setDisplayName(user.displayName || '');
+    setPhotoURL(user.photoURL || '');
     setPhotoPreview(null);
     setBannerPreview(null);
 

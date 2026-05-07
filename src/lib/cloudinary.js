@@ -29,3 +29,7 @@ export const uploadToCloudinary = async (file) => {
     throw new Error('Upload failed. Check your internet connection or Cloudinary settings.');
   }
 };
+export const uploadImagesToCloudinary = async (files) => {
+  const uploadPromises = Array.from(files).map((file) => uploadToCloudinary(file));
+  return Promise.all(uploadPromises);
+};
