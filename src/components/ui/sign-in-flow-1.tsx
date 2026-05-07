@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { cn } from "@/lib/utils";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { getAuth, GoogleAuthProvider, signInWithPopup, updateProfile } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithRedirect, updateProfile } from 'firebase/auth';
 import { login, signup } from '@/lib/auth';
 
 import * as THREE from "three";
@@ -544,11 +544,8 @@ export const SignInPage = ({ className }: SignInPageProps) => {
     try {
       const auth = getAuth();
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      // Success flow
-      setReverseCanvasVisible(true);
-      setTimeout(() => setInitialCanvasVisible(false), 50);
-      setTimeout(() => setStep("success"), 2000);
+      await signInWithRedirect(auth, provider);
+      // Redirect will navigate away; result handled in _app.jsx
     } catch (err: any) {
       setError(err.message || "Google login failed.");
       setLoading(false);
@@ -843,11 +840,8 @@ export const SignUpPage = ({ className }: SignUpPageProps) => {
     try {
       const auth = getAuth();
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      // Wait, Google signup is the same as Google sign in. The profile name will come from Google.
-      setReverseCanvasVisible(true);
-      setTimeout(() => setInitialCanvasVisible(false), 50);
-      setTimeout(() => setStep("success"), 2000);
+      await signInWithRedirect(auth, provider);
+      // Redirect will navigate away; result handled in _app.jsx
     } catch (err: any) {
       setError(err.message || "Google sign up failed.");
       setLoading(false);
