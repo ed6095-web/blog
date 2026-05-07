@@ -212,7 +212,6 @@ export default function ProfilePage() {
             <img src={bannerSrc} alt="Profile banner" className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full bg-gradient-to-r from-violet-900 via-purple-900 to-pink-900">
-              <div className="absolute inset-0 bg-[url('/noise.png')] opacity-10" />
               <div className="absolute top-4 right-8 w-40 h-40 rounded-full bg-wavvy-accent/30 blur-3xl" />
               <div className="absolute bottom-0 left-12 w-56 h-32 rounded-full bg-wavvy-primary/30 blur-3xl" />
             </div>

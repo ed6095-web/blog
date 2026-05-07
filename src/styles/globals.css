@@ -255,14 +255,10 @@ h1, h2, h3, h4, h5, h6 {
 
 /* ─── Input base ─── */
 .input-base {
-  @apply w-full px-4 py-3 rounded-xl text-sm outline-none transition-all duration-200;
-  background: rgba(255,255,255,0.06);
-  border: 1.5px solid rgba(255,255,255,0.1);
-  color: inherit;
+  @apply w-full px-4 py-3 rounded-xl text-sm outline-none transition-all duration-200 bg-gray-100 dark:bg-white/[0.06] border border-gray-200 dark:border-white/10 text-gray-900 dark:text-white placeholder-gray-400;
 }
 .input-base:focus {
-  border-color: #8B5CF6;
-  background: rgba(139, 92, 246, 0.05);
+  @apply border-wavvy-primary2 bg-wavvy-primary2/5;
   box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.12);
 }
 .input-base-light {
