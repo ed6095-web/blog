@@ -7,7 +7,8 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { cn } from "@/lib/utils";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { getAuth, GoogleAuthProvider, signInWithRedirect, updateProfile } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, updateProfile } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 import { login, signup } from '@/lib/auth';
 
 import * as THREE from "three";
@@ -539,12 +540,16 @@ export const SignInPage = ({ className }: SignInPageProps) => {
     setError("");
     setLoading(true);
     try {
-      const auth = getAuth();
       const provider = new GoogleAuthProvider();
-      await signInWithRedirect(auth, provider);
-      // Redirect will navigate away; result handled in _app.jsx
+      provider.setCustomParameters({ prompt: 'select_account' });
+      const result = await signInWithPopup(auth, provider);
+      if (result.user) {
+        router.replace('/');
+      }
     } catch (err: any) {
-      setError(err.message || "Google login failed.");
+      if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
+        setError(err.message || "Google login failed.");
+      }
       setLoading(false);
     }
   };
@@ -837,12 +842,16 @@ export const SignUpPage = ({ className }: SignUpPageProps) => {
     setError("");
     setLoading(true);
     try {
-      const auth = getAuth();
       const provider = new GoogleAuthProvider();
-      await signInWithRedirect(auth, provider);
-      // Redirect will navigate away; result handled in _app.jsx
+      provider.setCustomParameters({ prompt: 'select_account' });
+      const result = await signInWithPopup(auth, provider);
+      if (result.user) {
+        router.replace('/');
+      }
     } catch (err: any) {
-      setError(err.message || "Google sign up failed.");
+      if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
+        setError(err.message || "Google sign up failed.");
+      }
       setLoading(false);
     }
   };
