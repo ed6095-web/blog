@@ -41,7 +41,7 @@ const TABS = [
 ];
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('posts');
   const [posts, setPosts] = useState([]);
@@ -127,10 +127,13 @@ export default function ProfilePage() {
     }, 500);
   };
 
-  // Redirect if not logged in
+  // Redirect if not logged in — wait for auth to finish loading first
   useEffect(() => {
-    if (!user) router.push('/auth/login');
-  }, [user, router]);
+    if (!authLoading && !user) router.push('/auth/login');
+  }, [user, authLoading, router]);
+
+  // Show nothing while auth is loading (prevents flash-redirect)
+  if (authLoading) return null;
 
   // Fetch user's posts
   useEffect(() => {
@@ -374,20 +377,20 @@ export default function ProfilePage() {
                       placeholder="Your name"
                       autoFocus
                     />
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">@</span>
+                    <div className="relative flex items-center">
+                      <span className="absolute left-3 text-gray-400 text-sm font-medium pointer-events-none select-none">@</span>
                       <input
                         value={username}
                         onChange={e => handleUsernameChange(e.target.value)}
-                        className={`input-base text-sm w-full pl-7 ${
-                          usernameStatus === 'available' ? 'border-green-500/50 ring-green-500/20' :
-                          usernameStatus === 'taken' ? 'border-red-500/50 ring-red-500/20' : ''
+                        className={`input-base text-sm w-full pl-8 pr-8 ${
+                          usernameStatus === 'available' ? 'border-green-500/50' :
+                          usernameStatus === 'taken' ? 'border-red-500/50' : ''
                         }`}
                         placeholder="username"
                         maxLength={30}
                       />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm">
-                        {usernameStatus === 'checking' && <span className="text-gray-400">...</span>}
+                      <span className="absolute right-3 text-sm">
+                        {usernameStatus === 'checking' && <span className="text-gray-400 text-xs">...</span>}
                         {usernameStatus === 'available' && <span className="text-green-400">✓</span>}
                         {usernameStatus === 'taken' && <span className="text-red-400">✗</span>}
                       </span>
