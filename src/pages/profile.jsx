@@ -261,7 +261,7 @@ export default function ProfilePage() {
 
         {/* Profile Banner */}
         <div
-          className={`relative h-48 sm:h-64 overflow-hidden ${editing ? 'cursor-pointer' : ''}`}
+          className={`relative h-32 sm:h-48 overflow-hidden ${editing ? 'cursor-pointer' : ''}`}
           onClick={editing ? () => bannerInputRef.current?.click() : undefined}
         >
           {bannerSrc ? (
@@ -327,11 +327,6 @@ export default function ProfilePage() {
                   </div>
                 )}
 
-                {!editing && (
-                  <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-green-400 rounded-full border-3 border-white dark:border-slate-900 flex items-center justify-center">
-                    <SparklesIcon className="w-4 h-4 text-white" />
-                  </div>
-                )}
               </motion.div>
 
               <div className="pb-2 pt-2 sm:pt-0 flex-1 min-w-0">
@@ -416,7 +411,7 @@ export default function ProfilePage() {
           )}
 
           {/* Stats Row */}
-          <div className="flex items-center gap-6 mb-6 text-sm">
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6 mb-6 text-sm">
             <div className="text-center">
               <p className="font-grotesk font-bold text-lg text-gray-900 dark:text-white">{posts.length}</p>
               <p className="text-gray-400 text-xs">Posts</p>
@@ -430,7 +425,7 @@ export default function ProfilePage() {
               <p className="text-gray-400 text-xs">Following</p>
             </div>
             {joinedDate && (
-              <div className="flex items-center gap-1.5 text-gray-400 text-xs ml-auto">
+              <div className="flex items-center gap-1.5 text-gray-400 text-xs ml-auto w-full sm:w-auto mt-2 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-200 dark:border-white/5">
                 <CalendarDaysIcon className="w-3.5 h-3.5" />
                 Joined {joinedDate}
               </div>

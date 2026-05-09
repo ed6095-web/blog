@@ -10,7 +10,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { GoogleAuthProvider, signInWithPopup, updateProfile } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { login, signup } from '@/lib/auth';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 
 import * as THREE from "three";
 
@@ -492,7 +492,8 @@ function MiniNavbar() {
 
 export const SignInPage = ({ className }: SignInPageProps) => {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [emailOrUsername, setEmailOrUsername] = useState("");
+  const [email, setEmail] = useState(""); // resolved email for login
   const [password, setPassword] = useState("");
   const [step, setStep] = useState<"email" | "password" | "success">("email");
   const passwordInputRef = useRef<HTMLInputElement | null>(null);
@@ -502,11 +503,29 @@ export const SignInPage = ({ className }: SignInPageProps) => {
   const [initialCanvasVisible, setInitialCanvasVisible] = useState(true);
   const [reverseCanvasVisible, setReverseCanvasVisible] = useState(false);
 
-  const handleEmailSubmit = (e: React.FormEvent) => {
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email) {
-      setStep("password");
-      setError("");
+    if (!emailOrUsername) return;
+    setError("");
+    setLoading(true);
+    try {
+      let resolvedEmail = emailOrUsername;
+      // If not an email (no @), treat it as a username and look up the email
+      if (!emailOrUsername.includes('@')) {
+        const usernameDoc = await getDoc(doc(db, 'usernames', emailOrUsername.toLowerCase()));
+        if (!usernameDoc.exists()) {
+          setError('Username not found. Please check and try again.');
+          setLoading(false);
+          return;
+        }
+        resolvedEmail = usernameDoc.data().email;
+      }
+      setEmail(resolvedEmail);
+      setStep('password');
+    } catch (err: any) {
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -575,8 +594,9 @@ export const SignInPage = ({ className }: SignInPageProps) => {
   const handleBackClick = () => {
     setStep("email");
     setPassword("");
+    setEmailOrUsername("");
+    setEmail("");
     setError("");
-    // Reset animations if going back
     setReverseCanvasVisible(false);
     setInitialCanvasVisible(true);
   };
@@ -674,28 +694,33 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                       <form onSubmit={handleEmailSubmit}>
                         <div className="relative">
                           <input 
-                            type="email" 
-                            placeholder="info@gmail.com"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="w-full backdrop-blur-[1px] bg-white/10 text-white placeholder-white/40 caret-white border border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center autofill:bg-[#1a1a2e] autofill:text-white"
+                            type="text" 
+                            placeholder="Username or email"
+                            value={emailOrUsername}
+                            onChange={(e) => setEmailOrUsername(e.target.value)}
+                            className="w-full backdrop-blur-[1px] bg-white/10 text-white placeholder-white/40 caret-white border border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
                             style={{ colorScheme: 'dark' }}
                             required
                           />
                           <button 
                             type="submit"
-                            className="absolute right-1.5 top-1.5 text-white w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors group overflow-hidden"
+                            disabled={loading}
+                            className="absolute right-1.5 top-1.5 text-white w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors group overflow-hidden disabled:opacity-50"
                           >
-                            <span className="relative w-full h-full block overflow-hidden">
-                              <span className="absolute inset-0 flex items-center justify-center transition-transform duration-300 group-hover:translate-x-full">
-                                →
+                            {loading ? (
+                              <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                              </svg>
+                            ) : (
+                              <span className="relative w-full h-full block overflow-hidden">
+                                <span className="absolute inset-0 flex items-center justify-center transition-transform duration-300 group-hover:translate-x-full">→</span>
+                                <span className="absolute inset-0 flex items-center justify-center transition-transform duration-300 -translate-x-full group-hover:translate-x-0">→</span>
                               </span>
-                              <span className="absolute inset-0 flex items-center justify-center transition-transform duration-300 -translate-x-full group-hover:translate-x-0">
-                                →
-                              </span>
-                            </span>
+                            )}
                           </button>
                         </div>
+                        {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
                       </form>
                     </div>
                     
@@ -817,21 +842,58 @@ export const SignInPage = ({ className }: SignInPageProps) => {
 export const SignUpPage = ({ className }: SignUpPageProps) => {
   const router = useRouter();
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [step, setStep] = useState<"details" | "password" | "success">("details");
   const passwordInputRef = useRef<HTMLInputElement | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [initialCanvasVisible, setInitialCanvasVisible] = useState(true);
   const [reverseCanvasVisible, setReverseCanvasVisible] = useState(false);
+  const usernameDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleDetailsSubmit = (e: React.FormEvent) => {
+  const handleUsernameChange = (val: string) => {
+    // Only allow alphanumeric and underscores
+    const cleaned = val.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    setUsername(cleaned);
+    setUsernameStatus('idle');
+    if (usernameDebounceRef.current) clearTimeout(usernameDebounceRef.current);
+    if (cleaned.length < 3) return;
+    setUsernameStatus('checking');
+    usernameDebounceRef.current = setTimeout(async () => {
+      try {
+        const snap = await getDoc(doc(db, 'usernames', cleaned));
+        setUsernameStatus(snap.exists() ? 'taken' : 'available');
+      } catch {
+        setUsernameStatus('idle');
+      }
+    }, 500);
+  };
+
+  const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (name && email) {
-      setStep("password");
-      setError("");
+    if (!name || !username || !email) return;
+    if (username.length < 3) { setError('Username must be at least 3 characters.'); return; }
+    if (usernameStatus === 'taken') { setError('Username is already taken. Please choose another.'); return; }
+    setError('');
+    setLoading(true);
+    try {
+      // Final username check before proceeding
+      const snap = await getDoc(doc(db, 'usernames', username));
+      if (snap.exists()) {
+        setUsernameStatus('taken');
+        setError('Username is already taken. Please choose another.');
+        setLoading(false);
+        return;
+      }
+      setStep('password');
+    } catch (err: any) {
+      setError('Could not validate username. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -849,27 +911,33 @@ export const SignUpPage = ({ className }: SignUpPageProps) => {
     setError("");
     setLoading(true);
     try {
-      const userCredential = await signup(email, password);
-      if (name && userCredential.user) {
-        await updateProfile(userCredential.user, { displayName: name });
-        
-        // Initialize Firestore profile
-        await setDoc(doc(db, 'profiles', userCredential.user.uid), {
+      const result = await signup(email, password);
+      if (result.user) {
+        await updateProfile(result.user, { displayName: name });
+        // Save username → email mapping
+        await setDoc(doc(db, 'usernames', username.toLowerCase()), {
+          email: result.user.email || email,
+          uid: result.user.uid,
+        });
+        // Save full profile
+        const profileRef = doc(db, 'profiles', result.user.uid);
+        await setDoc(profileRef, {
           displayName: name,
-          email: email,
+          username: username.toLowerCase(),
+          email: result.user.email || '',
           photoURL: '',
           bio: '',
           website: '',
           followers: [],
           following: [],
           createdAt: serverTimestamp(),
-        }, { merge: true });
+        });
+        setReverseCanvasVisible(true);
+        setTimeout(() => setInitialCanvasVisible(false), 50);
+        setTimeout(() => setStep("success"), 2000);
       }
-      setReverseCanvasVisible(true);
-      setTimeout(() => setInitialCanvasVisible(false), 50);
-      setTimeout(() => setStep("success"), 2000);
     } catch (err: any) {
-      setError(err.message || "Failed to sign up. Please try again.");
+      setError(err.message || "Failed to create account.");
     } finally {
       setLoading(false);
     }
@@ -882,15 +950,32 @@ export const SignUpPage = ({ className }: SignUpPageProps) => {
       const provider = new GoogleAuthProvider();
       provider.addScope('profile');
       provider.addScope('email');
-
-      // Always use popup, but don't force select_account parameter as it can cause popup blockers to act up
       const result = await signInWithPopup(auth, provider);
       if (result.user) {
         const profileRef = doc(db, 'profiles', result.user.uid);
         const profileSnap = await getDoc(profileRef);
         if (!profileSnap.exists()) {
+          // Auto-generate a unique username from displayName
+          const baseName = (result.user.displayName || 'user').toLowerCase().replace(/[^a-z0-9]/g, '');
+          let autoUsername = baseName || 'user';
+          let suffix = 0;
+          while (true) {
+            const candidate = suffix === 0 ? autoUsername : `${autoUsername}${suffix}`;
+            const usernameSnap = await getDoc(doc(db, 'usernames', candidate));
+            if (!usernameSnap.exists()) {
+              autoUsername = candidate;
+              break;
+            }
+            suffix++;
+          }
+          // Save username lookup doc
+          await setDoc(doc(db, 'usernames', autoUsername), {
+            email: result.user.email || '',
+            uid: result.user.uid,
+          });
           await setDoc(profileRef, {
             displayName: result.user.displayName || '',
+            username: autoUsername,
             email: result.user.email || '',
             photoURL: result.user.photoURL || '',
             bio: '',
@@ -917,6 +1002,7 @@ export const SignUpPage = ({ className }: SignUpPageProps) => {
     setReverseCanvasVisible(false);
     setInitialCanvasVisible(true);
   };
+
 
   return (
     <div className={cn("flex w-[100%] flex-col min-h-screen bg-black relative", className)}>
@@ -995,6 +1081,7 @@ export const SignUpPage = ({ className }: SignUpPageProps) => {
                         <div className="h-px bg-white/10 flex-1" />
                       </div>
                       
+                      {error && <p className="text-red-400 text-sm">{error}</p>}
                       <form onSubmit={handleDetailsSubmit} className="space-y-3">
                         <input 
                           type="text" 
@@ -1007,6 +1094,28 @@ export const SignUpPage = ({ className }: SignUpPageProps) => {
                         />
                         <div className="relative">
                           <input 
+                            type="text" 
+                            placeholder="Username (e.g. john_doe)"
+                            value={username}
+                            onChange={(e) => handleUsernameChange(e.target.value)}
+                            className={`w-full backdrop-blur-[1px] bg-white/10 text-white placeholder-white/40 caret-white border rounded-full py-3 px-4 focus:outline-none text-center ${
+                              usernameStatus === 'available' ? 'border-green-500/60' :
+                              usernameStatus === 'taken' ? 'border-red-500/60' :
+                              'border-white/10 focus:border-white/30'
+                            }`}
+                            style={{ colorScheme: 'dark' }}
+                            required
+                          />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs">
+                            {usernameStatus === 'checking' && <span className="text-white/40">...</span>}
+                            {usernameStatus === 'available' && <span className="text-green-400">✓</span>}
+                            {usernameStatus === 'taken' && <span className="text-red-400">✗</span>}
+                          </span>
+                        </div>
+                        {usernameStatus === 'taken' && <p className="text-red-400 text-xs text-center">Username already taken</p>}
+                        {usernameStatus === 'available' && username.length >= 3 && <p className="text-green-400 text-xs text-center">@{username} is available!</p>}
+                        <div className="relative">
+                          <input 
                             type="email" 
                             placeholder="Email Address"
                             value={email}
@@ -1017,17 +1126,20 @@ export const SignUpPage = ({ className }: SignUpPageProps) => {
                           />
                           <button 
                             type="submit"
-                            disabled={!name || !email}
+                            disabled={!name || !username || !email || usernameStatus === 'taken' || usernameStatus === 'checking' || loading}
                             className="absolute right-1.5 top-1.5 text-white w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors group overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            <span className="relative w-full h-full block overflow-hidden">
-                              <span className="absolute inset-0 flex items-center justify-center transition-transform duration-300 group-hover:translate-x-full">
-                                →
+                            {loading ? (
+                              <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                              </svg>
+                            ) : (
+                              <span className="relative w-full h-full block overflow-hidden">
+                                <span className="absolute inset-0 flex items-center justify-center transition-transform duration-300 group-hover:translate-x-full">→</span>
+                                <span className="absolute inset-0 flex items-center justify-center transition-transform duration-300 -translate-x-full group-hover:translate-x-0">→</span>
                               </span>
-                              <span className="absolute inset-0 flex items-center justify-center transition-transform duration-300 -translate-x-full group-hover:translate-x-0">
-                                →
-                              </span>
-                            </span>
+                            )}
                           </button>
                         </div>
                       </form>

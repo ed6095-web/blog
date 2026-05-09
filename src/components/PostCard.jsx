@@ -60,6 +60,23 @@ export default function PostCard({ post }) {
       setLiked(false);
     }
 
+    if (user) {
+      const fetchBookmarkState = async () => {
+        try {
+          const profileSnap = await getDoc(doc(db, 'profiles', user.uid));
+          if (profileSnap.exists()) {
+            const bookmarks = profileSnap.data().bookmarks || [];
+            setBookmarked(bookmarks.includes(post.id));
+          }
+        } catch (err) {
+          console.error("Error fetching bookmark state:", err);
+        }
+      };
+      fetchBookmarkState();
+    } else {
+      setBookmarked(false);
+    }
+
     // Always fetch latest author profile to ensure DP is up-to-date
     if (post.authorId) {
       const fetchAuthor = async () => {
@@ -126,9 +143,24 @@ export default function PostCard({ post }) {
     }
   };
 
-  const handleBookmark = (e) => {
+  const handleBookmark = async (e) => {
     e.preventDefault();
-    setBookmarked(v => !v);
+    if (!user) return;
+    
+    const wasBookmarked = bookmarked;
+    setBookmarked(!wasBookmarked);
+
+    try {
+      const profileRef = doc(db, 'profiles', user.uid);
+      if (!wasBookmarked) {
+        await updateDoc(profileRef, { bookmarks: arrayUnion(post.id) });
+      } else {
+        await updateDoc(profileRef, { bookmarks: arrayRemove(post.id) });
+      }
+    } catch (error) {
+      console.error("Error toggling bookmark:", error);
+      setBookmarked(wasBookmarked);
+    }
   };
 
   return (
