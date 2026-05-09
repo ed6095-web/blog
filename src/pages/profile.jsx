@@ -132,9 +132,6 @@ export default function ProfilePage() {
     if (!authLoading && !user) router.push('/auth/login');
   }, [user, authLoading, router]);
 
-  // Show nothing while auth is loading (prevents flash-redirect)
-  if (authLoading) return null;
-
   // Fetch user's posts
   useEffect(() => {
     if (!user) return;
@@ -279,6 +276,15 @@ export default function ProfilePage() {
   };
 
   if (!user) return null;
+
+  // While auth is still loading or user not yet resolved, show a loading screen
+  if (authLoading || !user) {
+    return (
+      <div className="min-h-screen bg-wavvy-bgLight dark:bg-wavvy-bgDark flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-wavvy-primary2 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   const joinedDate = user.metadata?.creationTime
     ? format(new Date(user.metadata.creationTime), 'MMMM yyyy')
