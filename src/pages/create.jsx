@@ -1,13 +1,14 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { uploadToCloudinary } from '../lib/cloudinary';
 import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import MediaCarousel from '../components/MediaCarousel';
 import {
   PhotoIcon,
   TagIcon,
@@ -15,10 +16,52 @@ import {
   PaperAirplaneIcon,
   XMarkIcon,
   SparklesIcon,
+  FilmIcon,
+  PlusIcon,
 } from '@heroicons/react/24/outline';
+import { PlayIcon } from '@heroicons/react/24/solid';
 import Link from 'next/link';
 
 const CATEGORIES = ['Technology', 'Design', 'Culture', 'Health', 'Science', 'Mental Health', 'Startups', 'Climate'];
+const MAX_MEDIA = 50;
+
+function MediaThumb({ item, index, onRemove }) {
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.85 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.85 }}
+      className="relative group flex-shrink-0 w-24 h-24 rounded-xl overflow-hidden border-2 border-white/10 cursor-grab active:cursor-grabbing"
+    >
+      {item.type === 'video' ? (
+        <div className="w-full h-full bg-slate-900 flex items-center justify-center">
+          <video src={item.preview} className="w-full h-full object-cover opacity-70" />
+          <PlayIcon className="absolute w-8 h-8 text-white opacity-90" />
+        </div>
+      ) : (
+        <img src={item.preview} alt="" className="w-full h-full object-cover" />
+      )}
+      {/* index badge */}
+      <div className="absolute top-1 left-1 w-5 h-5 rounded-full bg-black/60 flex items-center justify-center">
+        <span className="text-white text-[9px] font-bold">{index + 1}</span>
+      </div>
+      {/* type badge */}
+      {item.type === 'video' && (
+        <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60">
+          <FilmIcon className="w-3 h-3 text-white" />
+        </div>
+      )}
+      {/* remove */}
+      <button
+        onClick={() => onRemove(index)}
+        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/80"
+      >
+        <XMarkIcon className="w-3 h-3 text-white" />
+      </button>
+    </motion.div>
+  );
+}
 
 export default function CreatePage() {
   const { user } = useAuth();
@@ -28,23 +71,45 @@ export default function CreatePage() {
   const [category, setCategory] = useState('');
   const [tags, setTags] = useState([]);
   const [tagInput, setTagInput] = useState('');
-  const [coverImage, setCoverImage] = useState('');
-  const [coverFile, setCoverFile] = useState(null);
   const [publishing, setPublishing] = useState(false);
-  const coverInputRef = useRef(null);
   const [preview, setPreview] = useState(false);
   const [error, setError] = useState('');
-  const [lastSaved, setLastSaved] = useState(null);
-  const contentImageInputRef = useRef(null);
+
+  // Media state — each item: { file, preview, type: 'image'|'video' }
+  const [mediaItems, setMediaItems] = useState([]);
+  const mediaInputRef = useRef(null);
+  const [uploadProgress, setUploadProgress] = useState(0); // 0-100
+
+  const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
+  const readTime = Math.max(1, Math.round(wordCount / 200));
+
+  const handleMediaAdd = useCallback((files) => {
+    const incoming = Array.from(files);
+    const remaining = MAX_MEDIA - mediaItems.length;
+    if (remaining <= 0) { setError(`Maximum ${MAX_MEDIA} media items allowed.`); return; }
+    const toAdd = incoming.slice(0, remaining).map(file => ({
+      file,
+      preview: URL.createObjectURL(file),
+      type: file.type.startsWith('video/') ? 'video' : 'image',
+    }));
+    setMediaItems(prev => [...prev, ...toAdd]);
+    if (incoming.length > remaining) {
+      setError(`Only ${remaining} more items can be added (max ${MAX_MEDIA}).`);
+    }
+  }, [mediaItems.length]);
+
+  const removeMedia = (idx) => {
+    setMediaItems(prev => {
+      URL.revokeObjectURL(prev[idx].preview);
+      return prev.filter((_, i) => i !== idx);
+    });
+  };
 
   const addTag = () => {
     const t = tagInput.trim().toLowerCase().replace(/\s+/g, '-');
-    if (t && !tags.includes(t) && tags.length < 5) {
-      setTags([...tags, t]);
-    }
+    if (t && !tags.includes(t) && tags.length < 5) setTags([...tags, t]);
     setTagInput('');
   };
-
   const removeTag = (tag) => setTags(tags.filter(t => t !== tag));
 
   const handlePublish = async () => {
@@ -54,18 +119,27 @@ export default function CreatePage() {
 
     setPublishing(true);
     setError('');
+    setUploadProgress(0);
+
     try {
-      let uploadedCoverUrl = coverImage;
-      if (coverFile) {
-        uploadedCoverUrl = await uploadToCloudinary(coverFile);
+      // Upload all media files to Cloudinary
+      const uploaded = [];
+      for (let i = 0; i < mediaItems.length; i++) {
+        const item = mediaItems[i];
+        const url = await uploadToCloudinary(item.file);
+        uploaded.push({ url, type: item.type });
+        setUploadProgress(Math.round(((i + 1) / mediaItems.length) * 90));
       }
 
-      const doc = await addDoc(collection(db, 'posts'), {
+      const docRef = await addDoc(collection(db, 'posts'), {
         title: title.trim(),
         content: content.trim(),
         category,
         tags,
-        coverImage: uploadedCoverUrl,
+        // first image as cover (for legacy PostCard fallback)
+        coverImage: uploaded.find(m => m.type === 'image')?.url || '',
+        // full media array for carousel
+        mediaItems: uploaded,
         authorId: user.uid,
         authorName: user.displayName || user.email,
         authorPhoto: user.photoURL || '',
@@ -75,12 +149,14 @@ export default function CreatePage() {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      router.push(`/post/${doc.id}`);
+      setUploadProgress(100);
+      router.push(`/post/${docRef.id}`);
     } catch (e) {
       setError('Failed to publish. Please try again.');
       console.error(e);
     } finally {
       setPublishing(false);
+      setUploadProgress(0);
     }
   };
 
@@ -97,8 +173,8 @@ export default function CreatePage() {
     );
   }
 
-  const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
-  const readTime = Math.max(1, Math.round(wordCount / 200));
+  // Preview carousel items
+  const previewCarouselItems = mediaItems.map(m => ({ url: m.preview, type: m.type }));
 
   return (
     <>
@@ -117,7 +193,6 @@ export default function CreatePage() {
               <h1 className="font-grotesk text-2xl font-bold text-gray-900 dark:text-white">New Story</h1>
               <p className="text-sm text-gray-400 mt-1">
                 {wordCount > 0 ? `${wordCount} words · ${readTime} min read` : 'Start writing...'}
-                {lastSaved && <span className="ml-2 text-green-400">· Saved</span>}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -133,10 +208,23 @@ export default function CreatePage() {
                 whileTap={{ scale: 0.97 }}
                 onClick={handlePublish}
                 disabled={publishing}
-                className="btn-primary text-sm py-2 px-5 flex items-center gap-1.5"
+                className="btn-primary text-sm py-2 px-5 flex items-center gap-1.5 relative overflow-hidden"
               >
-                <PaperAirplaneIcon className="w-4 h-4" />
-                {publishing ? 'Publishing...' : 'Publish'}
+                {/* Progress bar inside button */}
+                {publishing && uploadProgress > 0 && (
+                  <div
+                    className="absolute inset-0 bg-white/20 transition-all duration-200"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                )}
+                <PaperAirplaneIcon className="w-4 h-4 relative z-10" />
+                <span className="relative z-10">
+                  {publishing
+                    ? uploadProgress > 0
+                      ? `Uploading ${uploadProgress}%`
+                      : 'Publishing...'
+                    : 'Publish'}
+                </span>
               </motion.button>
             </div>
           </div>
@@ -154,45 +242,94 @@ export default function CreatePage() {
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-8">
             {/* Editor */}
             <div className="space-y-4">
-              {/* Cover Image Upload */}
-              <div 
-                className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-800/60 border border-gray-200 dark:border-white/[0.06] cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
-                onClick={() => coverInputRef.current?.click()}
-              >
-                <PhotoIcon className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                <input
-                  ref={coverInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={e => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      setCoverFile(file);
-                      setCoverImage(URL.createObjectURL(file));
-                    }
-                  }}
-                />
-                <span className="flex-1 text-sm text-gray-500 dark:text-gray-400">
-                  {coverFile ? coverFile.name : 'Add a cover image...'}
-                </span>
-              </div>
 
-              {/* Cover preview */}
-              {coverImage && (
-                <div className="relative rounded-xl overflow-hidden aspect-[16/7]">
-                  <img src={coverImage} alt="Cover" className="w-full h-full object-cover" />
-                  <button
-                    onClick={() => {
-                      setCoverImage('');
-                      setCoverFile(null);
-                    }}
-                    className="absolute top-3 right-3 p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70"
-                  >
-                    <XMarkIcon className="w-4 h-4" />
-                  </button>
+              {/* ── Media Upload Section ── */}
+              <div className="rounded-2xl bg-white dark:bg-slate-800/60 border border-gray-200 dark:border-white/[0.06] overflow-hidden">
+                {/* Upload bar */}
+                <div
+                  className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/[0.04] transition-colors border-b border-gray-200 dark:border-white/[0.06]"
+                  onClick={() => mediaInputRef.current?.click()}
+                >
+                  <input
+                    ref={mediaInputRef}
+                    type="file"
+                    accept="image/*,video/*"
+                    multiple
+                    className="hidden"
+                    onChange={e => { handleMediaAdd(e.target.files); e.target.value = ''; }}
+                  />
+                  <div className="flex items-center gap-2 text-gray-400">
+                    <PhotoIcon className="w-5 h-5" />
+                    <FilmIcon className="w-5 h-5" />
+                  </div>
+                  <span className="flex-1 text-sm text-gray-500 dark:text-gray-400">
+                    {mediaItems.length === 0
+                      ? 'Add photos & videos (up to 50)...'
+                      : `${mediaItems.length}/${MAX_MEDIA} media items`}
+                  </span>
+                  {mediaItems.length < MAX_MEDIA && (
+                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-wavvy-primary/10 text-wavvy-primary2 text-xs font-medium">
+                      <PlusIcon className="w-3.5 h-3.5" />
+                      Add
+                    </div>
+                  )}
                 </div>
-              )}
+
+                {/* Media grid / drag to reorder */}
+                <AnimatePresence>
+                  {mediaItems.length > 0 && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="p-3"
+                    >
+                      {/* Scrollable thumbnail strip */}
+                      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none" style={{ scrollbarWidth: 'none' }}>
+                        <AnimatePresence>
+                          {mediaItems.map((item, idx) => (
+                            <MediaThumb
+                              key={item.preview}
+                              item={item}
+                              index={idx}
+                              onRemove={removeMedia}
+                            />
+                          ))}
+                        </AnimatePresence>
+                        {mediaItems.length < MAX_MEDIA && (
+                          <button
+                            onClick={() => mediaInputRef.current?.click()}
+                            className="flex-shrink-0 w-24 h-24 rounded-xl border-2 border-dashed border-gray-300 dark:border-white/10 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-wavvy-primary2/50 hover:text-wavvy-primary2 transition-colors"
+                          >
+                            <PlusIcon className="w-6 h-6" />
+                            <span className="text-[10px] font-medium">Add more</span>
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-gray-400 mt-2">
+                        Drag thumbnails to reorder · First item will be the cover
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Preview carousel (when in preview mode) */}
+                <AnimatePresence>
+                  {preview && previewCarouselItems.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                    >
+                      <MediaCarousel
+                        mediaItems={previewCarouselItems}
+                        aspectRatio="aspect-[16/9]"
+                        showCounter
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
 
               {/* Title */}
               <textarea
@@ -204,39 +341,6 @@ export default function CreatePage() {
               />
 
               <div className="border-t border-gray-200 dark:border-white/[0.06]" />
-
-              {/* Content Editor Toolbar */}
-              {!preview && (
-                <div className="flex items-center gap-2 mb-2">
-                  <button
-                    onClick={() => contentImageInputRef.current?.click()}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-white/[0.06] text-gray-600 dark:text-gray-400 text-xs font-medium hover:bg-gray-200 dark:hover:bg-white/10 transition-colors"
-                    title="Add image to content"
-                  >
-                    <PhotoIcon className="w-4 h-4" />
-                    Add Image
-                  </button>
-                  <input
-                    ref={contentImageInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        try {
-                          const url = await uploadToCloudinary(file);
-                          setContent(prev => prev + `\n\n![Image](${url})\n\n`);
-                        } catch (err) {
-                          setError('Failed to upload image to content.');
-                        }
-                      }
-                    }}
-                  />
-                  <div className="h-4 w-[1px] bg-gray-200 dark:bg-white/10 mx-1" />
-                  <span className="text-[10px] text-gray-400 italic">Images will be appended to the end of your story</span>
-                </div>
-              )}
 
               {/* Content */}
               {preview ? (
@@ -254,7 +358,7 @@ export default function CreatePage() {
                 <textarea
                   value={content}
                   onChange={e => setContent(e.target.value)}
-                  placeholder="Tell your story... Share what's on your mind. Use paragraphs, quotes, and lists to structure your thoughts."
+                  placeholder="Tell your story... Share what's on your mind."
                   rows={20}
                   className="w-full resize-none bg-transparent text-base leading-relaxed text-gray-700 dark:text-gray-300 placeholder-gray-400 outline-none border-none font-inter"
                 />
@@ -263,17 +367,17 @@ export default function CreatePage() {
 
             {/* Sidebar */}
             <div className="space-y-4">
-              {/* AI hint */}
+              {/* Tips */}
               <div className="rounded-2xl p-4 bg-gradient-to-br from-violet-500/10 to-pink-500/10 border border-violet-500/20">
                 <div className="flex items-center gap-2 mb-2">
                   <SparklesIcon className="w-4 h-4 text-wavvy-primary2" />
-                  <span className="text-sm font-semibold text-wavvy-primary2">Writing tips</span>
+                  <span className="text-sm font-semibold text-wavvy-primary2">Media tips</span>
                 </div>
                 <ul className="space-y-1.5 text-xs text-gray-400">
-                  <li>✦ Hook readers in the first sentence</li>
-                  <li>✦ Use short paragraphs for readability</li>
-                  <li>✦ End with a clear takeaway</li>
-                  <li>✦ Add a cover image to increase reads</li>
+                  <li>✦ Upload up to 50 photos & videos</li>
+                  <li>✦ First item becomes the cover</li>
+                  <li>✦ Readers can swipe through your media</li>
+                  <li>✦ Mix photos and videos freely</li>
                 </ul>
               </div>
 
@@ -343,8 +447,8 @@ export default function CreatePage() {
                       <span className="font-medium text-gray-700 dark:text-gray-300">{readTime} min</span>
                     </div>
                     <div className="flex justify-between text-gray-500 dark:text-gray-400">
-                      <span>Characters</span>
-                      <span className="font-medium text-gray-700 dark:text-gray-300">{content.length}</span>
+                      <span>Media</span>
+                      <span className="font-medium text-gray-700 dark:text-gray-300">{mediaItems.length} items</span>
                     </div>
                   </div>
                 </div>

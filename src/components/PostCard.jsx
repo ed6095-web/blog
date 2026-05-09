@@ -17,6 +17,7 @@ import { useAuth } from '../context/AuthContext';
 import { doc, setDoc, updateDoc, arrayUnion, arrayRemove, collection, addDoc, serverTimestamp, getDoc, increment } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import Avatar from './Avatar';
+import MediaCarousel from './MediaCarousel';
 
 const CATEGORY_COLORS = {
   Technology: 'bg-blue-500/15 text-blue-400 border border-blue-500/20',
@@ -174,22 +175,15 @@ export default function PostCard({ post }) {
                  shadow-card hover:shadow-card-hover transition-shadow duration-300"
     >
       <Link href={`/post/${post.id}`} className="flex flex-col flex-1">
-        {/* Cover Image */}
-        {post.coverImage ? (
-          <div className="relative w-full aspect-[16/10] overflow-hidden">
-            <img
-              src={post.coverImage}
-              alt={post.title}
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-              loading="lazy"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-          </div>
-        ) : (
-          <div className="w-full aspect-[16/10] bg-gradient-to-br from-wavvy-primary/20 via-wavvy-accent/15 to-wavvy-accent2/20 flex items-center justify-center">
-            <div className="w-16 h-16 rounded-2xl bg-wavvy-gradient opacity-30" />
-          </div>
-        )}
+        {/* Media Carousel — supports photos & videos */}
+        <MediaCarousel
+          mediaItems={post.mediaItems}
+          coverImage={post.coverImage}
+          aspectRatio="aspect-[16/10]"
+          showCounter
+          className="group-hover:scale-[1.01] transition-transform duration-500"
+        />
+
 
         <div className="flex flex-col flex-1 p-5">
           {/* Category + read time */}
