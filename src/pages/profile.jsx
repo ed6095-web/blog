@@ -336,97 +336,48 @@ export default function ProfilePage() {
         </div>
 
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
-          {/* Avatar + Info Row */}
-          <div className="relative -mt-12 mb-5 flex items-end justify-between gap-3">
-            {/* Left: avatar + name */}
-            <div className="flex items-end gap-3 flex-1 min-w-0">
-              {/* Avatar */}
-              <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ type: 'spring', stiffness: 200 }}
-                className="relative"
-                onClick={editing ? () => avatarInputRef.current?.click() : undefined}
-                style={{ cursor: editing ? 'pointer' : 'default' }}
-              >
-                <Avatar 
-                  url={avatarSrc} 
-                  name={user.displayName} 
-                  size={80} 
-                  className="rounded-2xl border-4 border-white dark:border-slate-900 shadow-xl"
-                />
+          {/* Avatar and Actions Row */}
+          <div className="relative -mt-12 mb-3 flex items-end justify-between gap-3 px-1">
+            {/* Avatar */}
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 200 }}
+              className="relative flex-shrink-0"
+              onClick={editing ? () => avatarInputRef.current?.click() : undefined}
+              style={{ cursor: editing ? 'pointer' : 'default' }}
+            >
+              <Avatar 
+                url={avatarSrc} 
+                name={user.displayName} 
+                size={80} 
+                className="rounded-2xl border-4 border-white dark:border-slate-900 shadow-xl"
+              />
 
-                {/* Avatar upload overlay — always visible when editing */}
-                {editing && (
-                  <div className="absolute inset-0 rounded-2xl flex items-center justify-center bg-black/50 border-4 border-white dark:border-slate-900 overflow-hidden">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="absolute inset-0 opacity-0 cursor-pointer z-10"
-                      onChange={handleAvatarChange}
-                    />
-                    <div className="flex flex-col items-center gap-1 pointer-events-none">
-                      <CameraIcon className="w-7 h-7 text-white" />
-                      {photoFile && <span className="text-white text-[10px] font-medium">✓ Selected</span>}
-                    </div>
+              {/* Avatar upload overlay */}
+              {editing && (
+                <div className="absolute inset-0 rounded-2xl flex items-center justify-center bg-black/50 border-4 border-white dark:border-slate-900 overflow-hidden">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                    onChange={handleAvatarChange}
+                  />
+                  <div className="flex flex-col items-center gap-1 pointer-events-none">
+                    <CameraIcon className="w-7 h-7 text-white" />
+                    {photoFile && <span className="text-white text-[10px] font-medium">✓</span>}
                   </div>
-                )}
-
-              </motion.div>
-
-              <div className="pb-2 pt-2 sm:pt-0 flex-1 min-w-0">
-                {editing ? (
-                  <div className="space-y-2">
-                    <input
-                      value={displayName}
-                      onChange={e => setDisplayName(e.target.value)}
-                      className="input-base text-xl font-bold w-full"
-                      placeholder="Your name"
-                      autoFocus
-                    />
-                    <div className="relative flex items-center">
-                      <span className="absolute left-3 text-gray-400 text-sm font-medium pointer-events-none select-none">@</span>
-                      <input
-                        value={username}
-                        onChange={e => handleUsernameChange(e.target.value)}
-                        className={`input-base text-sm w-full pl-8 pr-8 ${
-                          usernameStatus === 'available' ? 'border-green-500/50' :
-                          usernameStatus === 'taken' ? 'border-red-500/50' : ''
-                        }`}
-                        placeholder="username"
-                        maxLength={30}
-                      />
-                      <span className="absolute right-3 text-sm">
-                        {usernameStatus === 'checking' && <span className="text-gray-400 text-xs">...</span>}
-                        {usernameStatus === 'available' && <span className="text-green-400">✓</span>}
-                        {usernameStatus === 'taken' && <span className="text-red-400">✗</span>}
-                      </span>
-                    </div>
-                    {usernameStatus === 'taken' && <p className="text-red-400 text-xs">Username already taken</p>}
-                    {usernameStatus === 'available' && username !== originalUsername && <p className="text-green-400 text-xs">@{username} is available!</p>}
-                  </div>
-                ) : (
-                  <>
-                    <h1 className="font-grotesk text-2xl font-bold text-gray-900 dark:text-white truncate">
-                      {user.displayName || 'Wavvy User'}
-                    </h1>
-                    {username && <p className="text-wavvy-primary2 text-sm font-medium">@{username}</p>}
-                  </>
-                )}
-                <p className="text-gray-400 text-sm truncate mt-0.5">{user.email}</p>
-                {bio && !editing && (
-                  <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 max-w-xl break-words">{bio}</p>
-                )}
-              </div>
-            </div>
+                </div>
+              )}
+            </motion.div>
 
             {/* Action Buttons */}
-            <div className="flex items-center gap-2 flex-shrink-0 pb-1">
+            <div className="flex items-center gap-2 pb-1 flex-shrink-0">
               {editing ? (
                 <>
                   <button
                     onClick={handleCancelEdit}
-                    className="btn-ghost text-sm py-2 px-4 flex items-center gap-1.5"
+                    className="btn-ghost text-sm py-2 px-3 sm:px-4 flex items-center gap-1.5"
                   >
                     <XMarkIcon className="w-4 h-4" />
                     Cancel
@@ -471,6 +422,52 @@ export default function ProfilePage() {
                 </>
               )}
             </div>
+          </div>
+
+          {/* User Info (Name, Username, Bio) */}
+          <div className="px-2 mb-6">
+            {editing ? (
+              <div className="space-y-3 mt-4 max-w-sm">
+                <input
+                  value={displayName}
+                  onChange={e => setDisplayName(e.target.value)}
+                  className="input-base text-xl font-bold w-full"
+                  placeholder="Your name"
+                  autoFocus
+                />
+                <div className="relative flex items-center">
+                  <span className="absolute left-3 text-gray-400 text-sm font-medium pointer-events-none select-none">@</span>
+                  <input
+                    value={username}
+                    onChange={e => handleUsernameChange(e.target.value)}
+                    className={`input-base text-sm w-full pl-8 pr-8 ${
+                      usernameStatus === 'available' ? 'border-green-500/50' :
+                      usernameStatus === 'taken' ? 'border-red-500/50' : ''
+                    }`}
+                    placeholder="username"
+                    maxLength={30}
+                  />
+                  <span className="absolute right-3 text-sm">
+                    {usernameStatus === 'checking' && <span className="text-gray-400 text-xs">...</span>}
+                    {usernameStatus === 'available' && <span className="text-green-400">✓</span>}
+                    {usernameStatus === 'taken' && <span className="text-red-400">✗</span>}
+                  </span>
+                </div>
+                {usernameStatus === 'taken' && <p className="text-red-400 text-xs">Username already taken</p>}
+                {usernameStatus === 'available' && username !== originalUsername && <p className="text-green-400 text-xs">@{username} is available!</p>}
+              </div>
+            ) : (
+              <>
+                <h1 className="font-grotesk text-2xl font-bold text-gray-900 dark:text-white break-words">
+                  {user.displayName || 'Wavvy User'}
+                </h1>
+                {username && <p className="text-wavvy-primary2 text-sm font-medium mt-0.5">@{username}</p>}
+                <p className="text-gray-400 text-sm break-words mt-0.5">{user.email}</p>
+                {bio && (
+                  <p className="text-gray-600 dark:text-gray-300 text-sm mt-3 max-w-xl leading-relaxed whitespace-pre-wrap">{bio}</p>
+                )}
+              </>
+            )}
           </div>
 
           {/* Save Error */}
