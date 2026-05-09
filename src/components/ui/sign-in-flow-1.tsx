@@ -7,12 +7,15 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { cn } from "@/lib/utils";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { GoogleAuthProvider, signInWithPopup, updateProfile } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, updateProfile } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { login, signup } from '@/lib/auth';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 
 import * as THREE from "three";
+
+// Detect if running on a mobile browser
+const isMobile = () => typeof window !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 type Uniforms = {
   [key: string]: {
@@ -537,25 +540,57 @@ export const SignInPage = ({ className }: SignInPageProps) => {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    setError("");
-    setLoading(true);
-    try {
-      const provider = new GoogleAuthProvider();
-      // provider.setCustomParameters({ prompt: 'select_account' }); // Removing this as it can cause popup to auto-close in some environments
-      const result = await signInWithPopup(auth, provider);
-      if (result.user) {
-        // Ensure profile exists in Firestore
+  // Handle redirect result on page load (for mobile Google Sign-in)
+  useEffect(() => {
+    getRedirectResult(auth).then(async (result) => {
+      if (result?.user) {
         const userRef = doc(db, 'profiles', result.user.uid);
         const snap = await getDoc(userRef);
         if (!snap.exists()) {
           await setDoc(userRef, {
             displayName: result.user.displayName || '',
+            email: result.user.email || '',
+            photoURL: result.user.photoURL || '',
             bio: '',
             website: '',
             followers: [],
             following: [],
-            updatedAt: serverTimestamp(),
+            createdAt: serverTimestamp(),
+          });
+        }
+        router.replace('/');
+      }
+    }).catch(() => {});
+  }, []);
+
+  const handleGoogleLogin = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.addScope('profile');
+      provider.addScope('email');
+
+      if (isMobile()) {
+        // Use redirect on mobile to avoid popup blockers
+        await signInWithRedirect(auth, provider);
+        // Page will redirect, no further code runs here
+        return;
+      }
+
+      const result = await signInWithPopup(auth, provider);
+      if (result.user) {
+        const userRef = doc(db, 'profiles', result.user.uid);
+        const snap = await getDoc(userRef);
+        if (!snap.exists()) {
+          await setDoc(userRef, {
+            displayName: result.user.displayName || '',
+            email: result.user.email || '',
+            photoURL: result.user.photoURL || '',
+            bio: '',
+            website: '',
+            followers: [],
+            following: [],
             createdAt: serverTimestamp(),
           });
         }
@@ -563,7 +598,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
       }
     } catch (err: any) {
       if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
-        setError(err.message || "Google login failed. Please ensure localhost is whitelisted in Firebase Auth.");
+        setError(err.message || "Google login failed. Please try again.");
       }
       setLoading(false);
     }
@@ -649,10 +684,17 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                         onClick={handleGoogleLogin}
                         type="button"
                         disabled={loading}
-                        className="backdrop-blur-[2px] w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-full py-3 px-4 transition-colors disabled:opacity-50"
+                        className="backdrop-blur-[2px] w-full flex items-center justify-center gap-3 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-full py-3 px-4 transition-colors disabled:opacity-50"
                       >
-                        <span className="text-lg">G</span>
-                        <span>{loading ? "Signing in..." : "Sign in with Google"}</span>
+                        {/* Google SVG Icon */}
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="w-5 h-5 flex-shrink-0">
+                          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                          <path fill="none" d="M0 0h48v48H0z"/>
+                        </svg>
+                        <span>{loading ? "Signing in..." : "Continue with Google"}</span>
                       </button>
                       
                       <div className="flex items-center gap-4">
@@ -865,18 +907,47 @@ export const SignUpPage = ({ className }: SignUpPageProps) => {
     }
   };
 
+  // Handle redirect result on page load (for mobile Google Sign-up)
+  useEffect(() => {
+    getRedirectResult(auth).then(async (result) => {
+      if (result?.user) {
+        const profileRef = doc(db, 'profiles', result.user.uid);
+        const profileSnap = await getDoc(profileRef);
+        if (!profileSnap.exists()) {
+          await setDoc(profileRef, {
+            displayName: result.user.displayName || '',
+            email: result.user.email || '',
+            photoURL: result.user.photoURL || '',
+            bio: '',
+            website: '',
+            followers: [],
+            following: [],
+            createdAt: serverTimestamp(),
+          });
+        }
+        router.replace('/');
+      }
+    }).catch(() => {});
+  }, []);
+
   const handleGoogleSignup = async () => {
     setError("");
     setLoading(true);
     try {
       const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
+      provider.addScope('profile');
+      provider.addScope('email');
+
+      if (isMobile()) {
+        // Use redirect on mobile to avoid popup blockers
+        await signInWithRedirect(auth, provider);
+        return;
+      }
+
       const result = await signInWithPopup(auth, provider);
       if (result.user) {
-        // Initialize Firestore profile if it doesn't exist
         const profileRef = doc(db, 'profiles', result.user.uid);
         const profileSnap = await getDoc(profileRef);
-        
         if (!profileSnap.exists()) {
           await setDoc(profileRef, {
             displayName: result.user.displayName || '',
@@ -893,7 +964,7 @@ export const SignUpPage = ({ className }: SignUpPageProps) => {
       }
     } catch (err: any) {
       if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
-        setError(err.message || "Google sign up failed.");
+        setError(err.message || "Google sign up failed. Please try again.");
       }
       setLoading(false);
     }
@@ -965,9 +1036,16 @@ export const SignUpPage = ({ className }: SignUpPageProps) => {
                         onClick={handleGoogleSignup}
                         type="button"
                         disabled={loading}
-                        className="backdrop-blur-[2px] w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-full py-3 px-4 transition-colors disabled:opacity-50"
+                        className="backdrop-blur-[2px] w-full flex items-center justify-center gap-3 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-full py-3 px-4 transition-colors disabled:opacity-50"
                       >
-                        <span className="text-lg">G</span>
+                        {/* Google SVG Icon */}
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="w-5 h-5 flex-shrink-0">
+                          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                          <path fill="none" d="M0 0h48v48H0z"/>
+                        </svg>
                         <span>{loading ? "Signing up..." : "Continue with Google"}</span>
                       </button>
                       

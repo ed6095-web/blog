@@ -172,9 +172,7 @@ export default function Navbar({ onSearch }) {
 
             {/* Logo */}
             <Link href="/" className="flex items-center gap-2 flex-shrink-0">
-              <div className="w-8 h-8 rounded-xl bg-wavvy-gradient flex items-center justify-center shadow-glow">
-                <span className="text-white font-black text-sm font-grotesk">W</span>
-              </div>
+              <img src="/wavvy-logo.png" alt="Wavvy" className="w-9 h-9 rounded-xl object-cover shadow-glow" />
               <span className="font-grotesk font-bold text-xl gradient-text-static hidden sm:block">
                 Wavvy
               </span>
@@ -436,10 +434,13 @@ export default function Navbar({ onSearch }) {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className="fixed inset-y-0 right-0 w-72 z-50 bg-slate-900 border-l border-white/10 flex flex-col"
+            className="fixed inset-y-0 right-0 w-72 z-[60] bg-slate-900 border-l border-white/10 flex flex-col"
           >
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
-              <span className="font-grotesk font-bold text-xl gradient-text-static">Wavvy</span>
+              <div className="flex items-center gap-2">
+                <img src="/wavvy-logo.png" alt="Wavvy" className="w-8 h-8 rounded-xl object-cover" />
+                <span className="font-grotesk font-bold text-xl gradient-text-static">Wavvy</span>
+              </div>
               <button onClick={() => setMobileMenuOpen(false)} className="p-2 rounded-lg hover:bg-white/10">
                 <XMarkIcon className="w-5 h-5 text-gray-400" />
               </button>
@@ -475,7 +476,7 @@ export default function Navbar({ onSearch }) {
                 </Link>
               ))}
             </nav>
-            <div className="p-4 border-t border-white/10">
+            <div className="p-4 pb-6 border-t border-white/10">
               {!user ? (
                 <div className="flex flex-col gap-2">
                   <Link href="/auth/login" onClick={() => setMobileMenuOpen(false)}>
@@ -486,9 +487,12 @@ export default function Navbar({ onSearch }) {
                   </Link>
                 </div>
               ) : (
-                <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm text-red-400 hover:bg-red-500/10 transition-colors">
+                <button
+                  onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-red-400 border border-red-500/20 hover:bg-red-500/10 transition-colors"
+                >
                   <ArrowRightOnRectangleIcon className="w-4 h-4" />
-                  Sign out
+                  Sign Out
                 </button>
               )}
             </div>
@@ -503,7 +507,7 @@ export default function Navbar({ onSearch }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 bg-black/50 sm:hidden"
+            className="fixed inset-0 z-[55] bg-black/50 sm:hidden"
             onClick={() => setMobileMenuOpen(false)}
           />
         )}
