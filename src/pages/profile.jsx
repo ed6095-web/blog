@@ -336,14 +336,14 @@ export default function ProfilePage() {
         </div>
 
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
-          {/* Avatar and Actions Row */}
-          <div className="relative -mt-12 mb-3 flex items-end justify-between gap-3 px-1">
+          {/* Avatar Row */}
+          <div className="relative -mt-12 mb-3 px-1">
             {/* Avatar */}
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 200 }}
-              className="relative flex-shrink-0"
+              className="relative inline-block"
               onClick={editing ? () => avatarInputRef.current?.click() : undefined}
               style={{ cursor: editing ? 'pointer' : 'default' }}
             >
@@ -370,64 +370,12 @@ export default function ProfilePage() {
                 </div>
               )}
             </motion.div>
-
-            {/* Action Buttons */}
-            <div className="flex items-center gap-2 pb-1 flex-shrink-0">
-              {editing ? (
-                <>
-                  <button
-                    onClick={handleCancelEdit}
-                    className="btn-ghost text-sm py-2 px-3 sm:px-4 flex items-center gap-1.5"
-                  >
-                    <XMarkIcon className="w-4 h-4" />
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSaveProfile}
-                    disabled={saving}
-                    className="btn-primary text-sm py-2 px-4 flex items-center gap-1.5"
-                  >
-                    {saving ? (
-                      <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                      </svg>
-                    ) : (
-                      <CheckIcon className="w-4 h-4" />
-                    )}
-                    {saving ? 'Saving...' : 'Save Profile'}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={() => setEditing(true)}
-                    className="btn-ghost text-sm py-2 px-4 flex items-center gap-1.5"
-                  >
-                    <PencilSquareIcon className="w-4 h-4" />
-                    <span className="hidden sm:inline">Edit Profile</span>
-                    <span className="sm:hidden">Edit</span>
-                  </button>
-                  <button
-                    onClick={async () => {
-                      const { logout } = await import('../lib/auth');
-                      await logout();
-                      router.push('/');
-                    }}
-                    className="btn-ghost text-sm py-2 px-4 flex items-center gap-1.5 text-red-400 border-red-500/20 hover:bg-red-500/10 hover:border-red-500/50"
-                  >
-                    <ArrowRightOnRectangleIcon className="w-4 h-4" />
-                    <span className="hidden sm:inline">Logout</span>
-                  </button>
-                </>
-              )}
-            </div>
           </div>
 
           {/* User Info (Name, Username, Bio) */}
-          <div className="px-2 mb-6">
+          <div className="px-2 mb-4">
             {editing ? (
-              <div className="space-y-3 mt-4 max-w-sm">
+              <div className="space-y-3 max-w-sm">
                 <input
                   value={displayName}
                   onChange={e => setDisplayName(e.target.value)}
@@ -466,6 +414,58 @@ export default function ProfilePage() {
                 {bio && (
                   <p className="text-gray-600 dark:text-gray-300 text-sm mt-3 max-w-xl leading-relaxed whitespace-pre-wrap">{bio}</p>
                 )}
+              </>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="px-2 mb-6 flex flex-wrap items-center gap-2">
+            {editing ? (
+              <>
+                <button
+                  onClick={handleCancelEdit}
+                  className="btn-ghost text-sm py-2 px-3 sm:px-4 flex items-center gap-1.5"
+                >
+                  <XMarkIcon className="w-4 h-4" />
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveProfile}
+                  disabled={saving}
+                  className="btn-primary text-sm py-2 px-4 flex items-center gap-1.5"
+                >
+                  {saving ? (
+                    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                  ) : (
+                    <CheckIcon className="w-4 h-4" />
+                  )}
+                  {saving ? 'Saving...' : 'Save Profile'}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => setEditing(true)}
+                  className="btn-ghost text-sm py-2 px-4 flex items-center gap-1.5"
+                >
+                  <PencilSquareIcon className="w-4 h-4" />
+                  <span className="hidden sm:inline">Edit Profile</span>
+                  <span className="sm:hidden">Edit</span>
+                </button>
+                <button
+                  onClick={async () => {
+                    const { logout } = await import('../lib/auth');
+                    await logout();
+                    router.push('/');
+                  }}
+                  className="btn-ghost text-sm py-2 px-4 flex items-center gap-1.5 text-red-400 border-red-500/20 hover:bg-red-500/10 hover:border-red-500/50"
+                >
+                  <ArrowRightOnRectangleIcon className="w-4 h-4" />
+                  <span className="hidden sm:inline">Logout</span>
+                </button>
               </>
             )}
           </div>
