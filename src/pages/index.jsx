@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Head from 'next/head';
 import { motion, AnimatePresence } from 'framer-motion';
+import Link from 'next/link';
 import {
   collection,
   query,
@@ -16,7 +17,8 @@ import HeroSection from '../components/HeroSection';
 import PostCard from '../components/PostCard';
 import SkeletonCard from '../components/SkeletonCard';
 import Footer from '../components/Footer';
-import { AdjustmentsHorizontalIcon, FireIcon, ClockIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import Avatar from '../components/Avatar';
+import { FireIcon, ClockIcon, SparklesIcon, UserCircleIcon } from '@heroicons/react/24/outline';
 
 const CATEGORIES = ['All', 'Technology', 'Design', 'Culture', 'Health', 'Science', 'Startups', 'Mental Health'];
 const SORT_OPTIONS = [
@@ -36,6 +38,8 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [category, setCategory]       = useState('All');
   const [sortBy, setSortBy]           = useState('Trending');
+  const [userResults, setUserResults] = useState([]);
+  const userSearchRef = useRef(null);
 
   const fetchPosts = useCallback(async (reset = false) => {
     if (reset) setLoading(true);
@@ -72,6 +76,38 @@ export default function HomePage() {
   useEffect(() => {
     fetchPosts(true);
   }, []); // eslint-disable-line
+
+  // Search users from Firestore when query changes
+  useEffect(() => {
+    if (userSearchRef.current) clearTimeout(userSearchRef.current);
+    if (!searchQuery || searchQuery.length < 2) { setUserResults([]); return; }
+    userSearchRef.current = setTimeout(async () => {
+      try {
+        const q = searchQuery.toLowerCase();
+        // Query by displayName prefix and by username prefix
+        const [nameSnap, usernameSnap] = await Promise.all([
+          getDocs(query(
+            collection(db, 'profiles'),
+            where('displayName', '>=', searchQuery),
+            where('displayName', '<=', searchQuery + '\uf8ff'),
+            limit(5)
+          )),
+          getDocs(query(
+            collection(db, 'profiles'),
+            where('username', '>=', q),
+            where('username', '<=', q + '\uf8ff'),
+            limit(5)
+          )),
+        ]);
+        const merged = new Map();
+        [...nameSnap.docs, ...usernameSnap.docs].forEach(d => merged.set(d.id, { id: d.id, ...d.data() }));
+        setUserResults([...merged.values()].slice(0, 6));
+      } catch (err) {
+        console.error('User search error:', err);
+        setUserResults([]);
+      }
+    }, 400);
+  }, [searchQuery]);
 
   // Filter and sort posts client-side
   const filteredPosts = posts
@@ -178,6 +214,37 @@ export default function HomePage() {
                 </button>
               ))}
             </div>
+
+            {/* User Results (when searching) */}
+            <AnimatePresence>
+              {searchQuery && userResults.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  className="mb-8"
+                >
+                  <p className="text-xs uppercase tracking-widest text-gray-400 font-semibold mb-3">People</p>
+                  <div className="flex flex-wrap gap-3">
+                    {userResults.map(u => (
+                      <Link key={u.id} href={`/user/${u.id}`}>
+                        <motion.div
+                          whileHover={{ y: -2 }}
+                          className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white dark:bg-slate-800/60 border border-gray-200/60 dark:border-white/[0.06] shadow-sm hover:border-wavvy-primary2/50 transition-all cursor-pointer"
+                        >
+                          <Avatar url={u.photoURL} name={u.displayName} size={36} className="rounded-xl" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{u.displayName || 'Wavvy User'}</p>
+                            {u.username && <p className="text-xs text-wavvy-primary2">@{u.username}</p>}
+                            {u.bio && <p className="text-xs text-gray-400 truncate max-w-[160px]">{u.bio}</p>}
+                          </div>
+                        </motion.div>
+                      </Link>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Posts Grid */}
             {loading ? (

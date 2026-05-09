@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   collection, query, where, getDocs,
-  doc, getDoc, setDoc, serverTimestamp,
+  doc, getDoc, setDoc, serverTimestamp, deleteDoc,
 } from 'firebase/firestore';
 import { uploadToCloudinary } from '../lib/cloudinary';
 import { db, auth } from '../lib/firebase';
@@ -50,6 +50,9 @@ export default function ProfilePage() {
 
   // editable fields
   const [displayName, setDisplayName] = useState('');
+  const [username, setUsername] = useState('');
+  const [usernameStatus, setUsernameStatus] = useState('idle'); // idle | checking | available | taken
+  const [originalUsername, setOriginalUsername] = useState('');
   const [bio, setBio] = useState('');
   const [website, setWebsite] = useState('');
   const [saving, setSaving] = useState(false);
@@ -93,6 +96,8 @@ export default function ProfilePage() {
           setPhotoURL(data.photoURL || user.photoURL || '');
           setFollowerCount(data.followers?.length || 0);
           setFollowingCount(data.following?.length || 0);
+          setUsername(data.username || '');
+          setOriginalUsername(data.username || '');
         }
       } catch (e) {
         console.error('Profile fetch error:', e);
@@ -100,6 +105,27 @@ export default function ProfilePage() {
     };
     fetchProfileData();
   }, [user]);
+
+  // Debounced username uniqueness check
+  const usernameDebounceRef = useRef(null);
+  const handleUsernameChange = (val) => {
+    const cleaned = val.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    setUsername(cleaned);
+    setUsernameStatus('idle');
+    if (usernameDebounceRef.current) clearTimeout(usernameDebounceRef.current);
+    if (cleaned.length < 3) return;
+    // If same as original, it's always available
+    if (cleaned === originalUsername) { setUsernameStatus('available'); return; }
+    setUsernameStatus('checking');
+    usernameDebounceRef.current = setTimeout(async () => {
+      try {
+        const snap = await getDoc(doc(db, 'usernames', cleaned));
+        setUsernameStatus(snap.exists() ? 'taken' : 'available');
+      } catch {
+        setUsernameStatus('idle');
+      }
+    }, 500);
+  };
 
   // Redirect if not logged in
   useEffect(() => {
@@ -183,41 +209,48 @@ export default function ProfilePage() {
 
   const handleSaveProfile = async () => {
     if (!auth.currentUser) return;
+    if (username && username.length < 3) { setSaveError('Username must be at least 3 characters.'); return; }
+    if (usernameStatus === 'taken') { setSaveError('That username is already taken.'); return; }
     setSaving(true);
     setSaveError('');
     try {
-      let newPhotoURL = user.photoURL;
+      let newPhotoURL = photoURL || user.photoURL;
       let newBannerURL = bannerURL;
 
-      // Upload avatar if changed
-      if (photoFile) {
-        newPhotoURL = await uploadToCloudinary(photoFile);
-      }
+      if (photoFile) newPhotoURL = await uploadToCloudinary(photoFile);
+      if (bannerFile) newBannerURL = await uploadToCloudinary(bannerFile);
 
-      // Upload banner if changed
-      if (bannerFile) {
-        newBannerURL = await uploadToCloudinary(bannerFile);
-      }
-
-      // Update Firebase Auth profile
       await fbUpdateProfile(auth.currentUser, {
         displayName: displayName || user.displayName,
         photoURL: newPhotoURL,
       });
 
-      // Save extra fields to Firestore
+      // Handle username changes in Firestore
+      const newUsername = username.toLowerCase().trim();
+      if (newUsername && newUsername !== originalUsername) {
+        // Delete old username mapping if it exists
+        if (originalUsername) {
+          await deleteDoc(doc(db, 'usernames', originalUsername));
+        }
+        // Create new username mapping
+        await setDoc(doc(db, 'usernames', newUsername), {
+          email: user.email || '',
+          uid: user.uid,
+        });
+      }
+
       await setDoc(doc(db, 'profiles', user.uid), {
         displayName: displayName || user.displayName,
         photoURL: newPhotoURL,
+        username: newUsername || originalUsername || '',
         bio,
         website,
         bannerURL: newBannerURL,
         updatedAt: serverTimestamp(),
       }, { merge: true });
 
+      setOriginalUsername(newUsername || originalUsername);
       setPhotoURL(newPhotoURL);
-      setBannerURL(newBannerURL);
-
       setBannerURL(newBannerURL);
       setPhotoFile(null);
       setBannerFile(null);
@@ -233,6 +266,8 @@ export default function ProfilePage() {
   const handleCancelEdit = () => {
     setEditing(false);
     setDisplayName(user.displayName || '');
+    setUsername(originalUsername);
+    setUsernameStatus('idle');
     setPhotoFile(null);
     setBannerFile(null);
     setPhotoPreview(null);
@@ -291,7 +326,7 @@ export default function ProfilePage() {
           )}
         </div>
 
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Avatar + Info Row */}
           <div className="relative -mt-16 mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 px-2 sm:px-0">
             <div className="flex flex-col sm:flex-row sm:items-end gap-5 flex-1 min-w-0">
@@ -331,19 +366,44 @@ export default function ProfilePage() {
 
               <div className="pb-2 pt-2 sm:pt-0 flex-1 min-w-0">
                 {editing ? (
-                  <input
-                    value={displayName}
-                    onChange={e => setDisplayName(e.target.value)}
-                    className="input-base text-xl font-bold w-full mb-1"
-                    placeholder="Your name"
-                    autoFocus
-                  />
+                  <div className="space-y-2">
+                    <input
+                      value={displayName}
+                      onChange={e => setDisplayName(e.target.value)}
+                      className="input-base text-xl font-bold w-full"
+                      placeholder="Your name"
+                      autoFocus
+                    />
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">@</span>
+                      <input
+                        value={username}
+                        onChange={e => handleUsernameChange(e.target.value)}
+                        className={`input-base text-sm w-full pl-7 ${
+                          usernameStatus === 'available' ? 'border-green-500/50 ring-green-500/20' :
+                          usernameStatus === 'taken' ? 'border-red-500/50 ring-red-500/20' : ''
+                        }`}
+                        placeholder="username"
+                        maxLength={30}
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm">
+                        {usernameStatus === 'checking' && <span className="text-gray-400">...</span>}
+                        {usernameStatus === 'available' && <span className="text-green-400">✓</span>}
+                        {usernameStatus === 'taken' && <span className="text-red-400">✗</span>}
+                      </span>
+                    </div>
+                    {usernameStatus === 'taken' && <p className="text-red-400 text-xs">Username already taken</p>}
+                    {usernameStatus === 'available' && username !== originalUsername && <p className="text-green-400 text-xs">@{username} is available!</p>}
+                  </div>
                 ) : (
-                  <h1 className="font-grotesk text-2xl font-bold text-gray-900 dark:text-white truncate">
-                    {user.displayName || 'Wavvy User'}
-                  </h1>
+                  <>
+                    <h1 className="font-grotesk text-2xl font-bold text-gray-900 dark:text-white truncate">
+                      {user.displayName || 'Wavvy User'}
+                    </h1>
+                    {username && <p className="text-wavvy-primary2 text-sm font-medium">@{username}</p>}
+                  </>
                 )}
-                <p className="text-gray-400 text-sm truncate">{user.email}</p>
+                <p className="text-gray-400 text-sm truncate mt-0.5">{user.email}</p>
                 {bio && !editing && (
                   <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 max-w-xl break-words">{bio}</p>
                 )}
