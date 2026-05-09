@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   EnvelopeIcon,
   GlobeAltIcon,
@@ -52,6 +53,18 @@ const SOCIALS = [
 ];
 
 export default function Footer() {
+  const [email, setEmail] = useState('');
+  const [subscribed, setSubscribed] = useState(false);
+
+  const handleSubscribe = (e) => {
+    e.preventDefault();
+    if (email) {
+      setSubscribed(true);
+      setEmail('');
+      setTimeout(() => setSubscribed(false), 5000);
+    }
+  };
+
   return (
     <footer className="relative mt-24 border-t border-gray-200/60 dark:border-white/[0.06]">
       {/* Gradient divider */}
@@ -74,19 +87,34 @@ export default function Footer() {
             {/* Newsletter */}
             <div>
               <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Stay in the loop</p>
-              <div className="flex gap-2">
+              <form onSubmit={handleSubscribe} className="flex gap-2">
                 <div className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-white/10">
                   <EnvelopeIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
                   <input
                     type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     placeholder="your@email.com"
                     className="flex-1 bg-transparent text-sm text-gray-700 dark:text-gray-300 placeholder-gray-400 outline-none"
+                    required
                   />
                 </div>
-                <button className="btn-primary px-4 py-2 text-sm whitespace-nowrap">
+                <button type="submit" className="btn-primary px-4 py-2 text-sm whitespace-nowrap">
                   Subscribe
                 </button>
-              </div>
+              </form>
+              <AnimatePresence>
+                {subscribed && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    className="text-green-500 text-xs mt-2 font-medium"
+                  >
+                    Thanks for subscribing!
+                  </motion.p>
+                )}
+              </AnimatePresence>
             </div>
           </div>
 

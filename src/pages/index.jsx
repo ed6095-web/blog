@@ -90,10 +90,14 @@ export default function HomePage() {
         return timeB - timeA;
       }
       if (sortBy === 'Trending') {
-        return (b.likes || 0) - (a.likes || 0);
+        const likesA = Array.isArray(a.likes) ? a.likes.length : (a.likes || 0);
+        const likesB = Array.isArray(b.likes) ? b.likes.length : (b.likes || 0);
+        return likesB - likesA;
       }
       if (sortBy === 'Featured') {
-        return (b.views || 0) - (a.views || 0);
+        const scoreA = (Array.isArray(a.likes) ? a.likes.length : (a.likes || 0)) + (a.views || 0);
+        const scoreB = (Array.isArray(b.likes) ? b.likes.length : (b.likes || 0)) + (b.views || 0);
+        return scoreB - scoreA;
       }
       return 0;
     });

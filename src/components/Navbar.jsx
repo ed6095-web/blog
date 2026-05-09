@@ -11,7 +11,6 @@ import {
   SunIcon,
   MoonIcon,
   ChevronDownIcon,
-  Bars3Icon,
   XMarkIcon,
   UserCircleIcon,
   HomeIcon,
@@ -54,7 +53,6 @@ export default function Navbar({ onSearch }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const searchRef = useRef(null);
   const profileRef = useRef(null);
@@ -389,14 +387,6 @@ export default function Navbar({ onSearch }) {
                 </div>
               )}
 
-              {/* Hamburger (mobile) */}
-              <button
-                className="sm:hidden p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                aria-label="Menu"
-              >
-                {mobileMenuOpen ? <XMarkIcon className="w-5 h-5" /> : <Bars3Icon className="w-5 h-5" />}
-              </button>
             </div>
           </div>
 
@@ -426,104 +416,31 @@ export default function Navbar({ onSearch }) {
         </div>
       </motion.nav>
 
-      {/* Mobile Slide-in Menu */}
-      <AnimatePresence>
-        {mobileMenuOpen && (
-          <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className="fixed inset-y-0 right-0 w-72 z-[60] bg-slate-900 border-l border-white/10 flex flex-col"
-          >
-            <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
-              <div className="flex items-center gap-2">
-                <img src="/wavvy-logo.png" alt="Wavvy" className="w-8 h-8 rounded-xl object-cover" />
-                <span className="font-grotesk font-bold text-xl gradient-text-static">Wavvy</span>
-              </div>
-              <button onClick={() => setMobileMenuOpen(false)} className="p-2 rounded-lg hover:bg-white/10">
-                <XMarkIcon className="w-5 h-5 text-gray-400" />
-              </button>
-            </div>
-            <nav className="flex flex-col gap-1 p-4 flex-1">
-              {user && (
-                <div className="flex items-center gap-3 px-3 py-3 mb-3 rounded-xl bg-white/5">
-                  {user.photoURL
-                    ? <img src={user.photoURL} alt="Avatar" className="w-10 h-10 rounded-full object-cover" />
-                    : <div className="w-10 h-10 rounded-full bg-wavvy-gradient flex items-center justify-center text-white font-bold">
-                        {(user.displayName || user.email || 'U')[0].toUpperCase()}
-                      </div>
-                  }
-                  <div>
-                    <p className="text-sm font-semibold text-white">{user.displayName || 'Wavvy User'}</p>
-                    <p className="text-xs text-gray-400 truncate">{user.email}</p>
-                  </div>
-                </div>
-              )}
-              {[
-                { href: '/', label: 'Home', icon: HomeIcon },
-                { href: '/create', label: 'Write', icon: PencilSquareIcon },
-                ...(user ? [
-                  { href: '/profile', label: 'Profile', icon: UserCircleIcon },
-                  { href: '/bookmarks', label: 'Bookmarks', icon: BookmarkIcon },
-                ] : []),
-              ].map(({ href, label, icon: Icon }) => (
-                <Link key={href} href={href} onClick={() => setMobileMenuOpen(false)}>
-                  <div className="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-white/10 transition-colors">
-                    <Icon className="w-5 h-5" />
-                    <span className="font-medium">{label}</span>
-                  </div>
-                </Link>
-              ))}
-            </nav>
-            <div className="p-4 pb-6 border-t border-white/10">
-              {!user ? (
-                <div className="flex flex-col gap-2">
-                  <Link href="/auth/login" onClick={() => setMobileMenuOpen(false)}>
-                    <button className="w-full btn-ghost text-center">Login</button>
-                  </Link>
-                  <Link href="/auth/signup" onClick={() => setMobileMenuOpen(false)}>
-                    <button className="w-full btn-primary text-center">Sign Up</button>
-                  </Link>
-                </div>
-              ) : (
-                <button
-                  onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-red-400 border border-red-500/20 hover:bg-red-500/10 transition-colors"
-                >
-                  <ArrowRightOnRectangleIcon className="w-4 h-4" />
-                  Sign Out
-                </button>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Overlay for mobile menu */}
-      <AnimatePresence>
-        {mobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[55] bg-black/50 sm:hidden"
-            onClick={() => setMobileMenuOpen(false)}
-          />
-        )}
-      </AnimatePresence>
-
       {/* Bottom Mobile Nav */}
       <div className="mobile-nav items-center justify-around">
         {[
           { href: '/', label: 'Home', icon: HomeIcon },
           { href: '/create', label: 'Write', icon: PencilSquareIcon },
-          ...(user ? [{ href: '/profile', label: 'Profile', icon: UserCircleIcon }] : [{ href: '/auth/login', label: 'Login', icon: UserCircleIcon }]),
           { href: '/bookmarks', label: 'Saved', icon: BookmarkIcon },
-        ].map(({ href, label, icon: Icon }) => (
-          <Link key={href} href={href} className="flex flex-col items-center gap-1">
-            <Icon className={`w-6 h-6 ${router.pathname === href ? 'text-wavvy-primary2' : 'text-gray-500'}`} />
-            <span className={`text-[10px] font-medium ${router.pathname === href ? 'text-wavvy-primary2' : 'text-gray-500'}`}>{label}</span>
+          { href: user ? '/profile' : '/auth/login', label: 'Profile', icon: UserCircleIcon, isProfile: true },
+        ].map(({ href, label, icon: Icon, isProfile }) => (
+          <Link key={label} href={href} className="flex flex-col items-center gap-1">
+            {isProfile && user ? (
+              user.photoURL ? (
+                <img 
+                  src={user.photoURL} 
+                  alt="Profile" 
+                  className={`w-6 h-6 rounded-full object-cover ${router.pathname.includes('/profile') ? 'ring-2 ring-wavvy-primary2' : 'opacity-70'}`} 
+                />
+              ) : (
+                <div className={`w-6 h-6 rounded-full bg-wavvy-gradient flex items-center justify-center text-white text-[10px] font-bold ${router.pathname.includes('/profile') ? 'ring-2 ring-wavvy-primary2' : 'opacity-70'}`}>
+                  {(user.displayName || user.email || 'U')[0].toUpperCase()}
+                </div>
+              )
+            ) : (
+              <Icon className={`w-6 h-6 ${router.pathname === href ? 'text-wavvy-primary2' : 'text-gray-500'}`} />
+            )}
+            <span className={`text-[10px] font-medium ${router.pathname === href || (isProfile && router.pathname.includes('/profile')) ? 'text-wavvy-primary2' : 'text-gray-500'}`}>{label}</span>
           </Link>
         ))}
       </div>

@@ -290,7 +290,7 @@ export default function ProfilePage() {
           )}
         </div>
 
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Avatar + Info Row */}
           <div className="relative -mt-16 mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 px-2 sm:px-0">
             <div className="flex flex-col sm:flex-row sm:items-end gap-5 flex-1 min-w-0">
@@ -388,14 +388,20 @@ export default function ProfilePage() {
                     className="btn-ghost text-sm py-2 px-4 flex items-center gap-1.5"
                   >
                     <PencilSquareIcon className="w-4 h-4" />
-                    Edit Profile
+                    <span className="hidden sm:inline">Edit Profile</span>
+                    <span className="sm:hidden">Edit</span>
                   </button>
-                  <Link href="/create">
-                    <button className="btn-primary text-sm py-2 px-4 flex items-center gap-1.5">
-                      <PencilSquareIcon className="w-4 h-4" />
-                      Write
-                    </button>
-                  </Link>
+                  <button
+                    onClick={async () => {
+                      const { logout } = await import('../lib/auth');
+                      await logout();
+                      router.push('/');
+                    }}
+                    className="btn-ghost text-sm py-2 px-4 flex items-center gap-1.5 text-red-400 border-red-500/20 hover:bg-red-500/10 hover:border-red-500/50"
+                  >
+                    <ArrowRightOnRectangleIcon className="w-4 h-4" />
+                    <span className="hidden sm:inline">Logout</span>
+                  </button>
                 </>
               )}
             </div>

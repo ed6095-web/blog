@@ -7,15 +7,12 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { cn } from "@/lib/utils";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, updateProfile } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, updateProfile } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { login, signup } from '@/lib/auth';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 
 import * as THREE from "three";
-
-// Detect if running on a mobile browser
-const isMobile = () => typeof window !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 type Uniforms = {
   [key: string]: {
@@ -540,29 +537,6 @@ export const SignInPage = ({ className }: SignInPageProps) => {
     }
   };
 
-  // Handle redirect result on page load (for mobile Google Sign-in)
-  useEffect(() => {
-    getRedirectResult(auth).then(async (result) => {
-      if (result?.user) {
-        const userRef = doc(db, 'profiles', result.user.uid);
-        const snap = await getDoc(userRef);
-        if (!snap.exists()) {
-          await setDoc(userRef, {
-            displayName: result.user.displayName || '',
-            email: result.user.email || '',
-            photoURL: result.user.photoURL || '',
-            bio: '',
-            website: '',
-            followers: [],
-            following: [],
-            createdAt: serverTimestamp(),
-          });
-        }
-        router.replace('/');
-      }
-    }).catch(() => {});
-  }, []);
-
   const handleGoogleLogin = async () => {
     setError("");
     setLoading(true);
@@ -571,13 +545,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
       provider.addScope('profile');
       provider.addScope('email');
 
-      if (isMobile()) {
-        // Use redirect on mobile to avoid popup blockers
-        await signInWithRedirect(auth, provider);
-        // Page will redirect, no further code runs here
-        return;
-      }
-
+      // Always use popup, but don't force select_account parameter as it can cause popup blockers to act up
       const result = await signInWithPopup(auth, provider);
       if (result.user) {
         const userRef = doc(db, 'profiles', result.user.uid);
@@ -907,29 +875,6 @@ export const SignUpPage = ({ className }: SignUpPageProps) => {
     }
   };
 
-  // Handle redirect result on page load (for mobile Google Sign-up)
-  useEffect(() => {
-    getRedirectResult(auth).then(async (result) => {
-      if (result?.user) {
-        const profileRef = doc(db, 'profiles', result.user.uid);
-        const profileSnap = await getDoc(profileRef);
-        if (!profileSnap.exists()) {
-          await setDoc(profileRef, {
-            displayName: result.user.displayName || '',
-            email: result.user.email || '',
-            photoURL: result.user.photoURL || '',
-            bio: '',
-            website: '',
-            followers: [],
-            following: [],
-            createdAt: serverTimestamp(),
-          });
-        }
-        router.replace('/');
-      }
-    }).catch(() => {});
-  }, []);
-
   const handleGoogleSignup = async () => {
     setError("");
     setLoading(true);
@@ -938,12 +883,7 @@ export const SignUpPage = ({ className }: SignUpPageProps) => {
       provider.addScope('profile');
       provider.addScope('email');
 
-      if (isMobile()) {
-        // Use redirect on mobile to avoid popup blockers
-        await signInWithRedirect(auth, provider);
-        return;
-      }
-
+      // Always use popup, but don't force select_account parameter as it can cause popup blockers to act up
       const result = await signInWithPopup(auth, provider);
       if (result.user) {
         const profileRef = doc(db, 'profiles', result.user.uid);
