@@ -305,7 +305,7 @@ export default function ProfilePage() {
 
         {/* Profile Banner */}
         <div
-          className={`relative h-32 sm:h-48 overflow-hidden ${editing ? 'cursor-pointer' : ''}`}
+          className={`relative h-28 sm:h-44 overflow-hidden ${editing ? 'cursor-pointer' : ''}`}
           onClick={editing ? () => bannerInputRef.current?.click() : undefined}
         >
           {bannerSrc ? (
@@ -335,10 +335,11 @@ export default function ProfilePage() {
           )}
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6">
           {/* Avatar + Info Row */}
-          <div className="relative -mt-16 mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 px-2 sm:px-0">
-            <div className="flex flex-col sm:flex-row sm:items-end gap-5 flex-1 min-w-0">
+          <div className="relative -mt-12 mb-5 flex items-end justify-between gap-3">
+            {/* Left: avatar + name */}
+            <div className="flex items-end gap-3 flex-1 min-w-0">
               {/* Avatar */}
               <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
@@ -351,7 +352,7 @@ export default function ProfilePage() {
                 <Avatar 
                   url={avatarSrc} 
                   name={user.displayName} 
-                  size={112} 
+                  size={80} 
                   className="rounded-2xl border-4 border-white dark:border-slate-900 shadow-xl"
                 />
 
@@ -420,7 +421,7 @@ export default function ProfilePage() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center gap-2 pb-2">
+            <div className="flex items-center gap-2 flex-shrink-0 pb-1">
               {editing ? (
                 <>
                   <button
@@ -501,13 +502,13 @@ export default function ProfilePage() {
             )}
           </div>
 
-          {/* Tabs */}
-          <div className="flex gap-1 border-b border-gray-200 dark:border-white/[0.06] mb-8">
+          {/* Tabs — scrollable on mobile so they never wrap */}
+          <div className="flex gap-0 border-b border-gray-200 dark:border-white/[0.06] mb-8 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
             {TABS.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 onClick={() => setActiveTab(id)}
-                className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-all duration-200 ${
+                className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-all duration-200 ${
                   activeTab === id
                     ? 'border-wavvy-primary2 text-wavvy-primary2'
                     : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'

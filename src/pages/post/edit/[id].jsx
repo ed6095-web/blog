@@ -246,57 +246,70 @@ export default function EditPostPage() {
 
         <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 
-          {/* Header */}
-          <div className="flex items-center justify-between mb-8">
+          {/* ── Header – mobile-friendly two-line layout ── */}
+          <div className="mb-8">
+            {/* Row 1: back + title + actions all on one line */}
             <div className="flex items-center gap-3">
-              <Link href={`/post/${id}`}>
+              {/* Back button */}
+              <Link href={`/post/${id}`} className="flex-shrink-0">
                 <button className="p-2 rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-500 hover:text-wavvy-primary2 transition-colors">
                   <ArrowLeftIcon className="w-4 h-4" />
                 </button>
               </Link>
-              <div>
-                <h1 className="font-grotesk text-2xl font-bold text-gray-900 dark:text-white">Edit Post</h1>
-                <p className="text-sm text-gray-400 mt-0.5">
-                  {wordCount > 0 ? `${wordCount} words · ${readTime} min read` : 'Make your changes...'}
-                </p>
+
+              {/* Title – grows to fill available space */}
+              <h1 className="font-grotesk text-xl sm:text-2xl font-bold text-gray-900 dark:text-white flex-1 min-w-0 truncate">
+                Edit Post
+              </h1>
+
+              {/* Action buttons – always on the same row as title */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={() => setPreview(!preview)}
+                  className={`btn-ghost text-sm py-2 px-3 sm:px-4 flex items-center gap-1.5 ${
+                    preview ? 'text-wavvy-primary2' : ''
+                  }`}
+                >
+                  <EyeIcon className="w-4 h-4" />
+                  <span className="hidden sm:inline">{preview ? 'Edit' : 'Preview'}</span>
+                </button>
+
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleSave}
+                  disabled={saving || saved}
+                  className="btn-primary text-sm py-2 px-3 sm:px-5 flex items-center gap-1.5 relative overflow-hidden disabled:opacity-80"
+                >
+                  {saving && uploadProgress > 0 && (
+                    <div
+                      className="absolute inset-0 bg-white/20 transition-all duration-200"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center gap-1.5">
+                    {saved ? (
+                      <><CheckCircleIcon className="w-4 h-4" /><span className="hidden sm:inline">Saved!</span></>
+                    ) : saving ? (
+                      uploadProgress > 0 ? (
+                        <span className="hidden sm:inline">Uploading {uploadProgress}%</span>
+                      ) : (
+                        <span className="hidden sm:inline">Saving...</span>
+                      )
+                    ) : (
+                      <><PaperAirplaneIcon className="w-4 h-4" /><span className="hidden sm:inline">Save</span></>
+                    )}
+                  </span>
+                </motion.button>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPreview(!preview)}
-                className={`btn-ghost text-sm py-2 px-4 flex items-center gap-1.5 ${preview ? 'text-wavvy-primary2' : ''}`}
-              >
-                <EyeIcon className="w-4 h-4" />
-                {preview ? 'Edit' : 'Preview'}
-              </button>
-
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={handleSave}
-                disabled={saving || saved}
-                className="btn-primary text-sm py-2 px-5 flex items-center gap-1.5 relative overflow-hidden disabled:opacity-80"
-              >
-                {/* Upload progress bar */}
-                {saving && uploadProgress > 0 && (
-                  <div
-                    className="absolute inset-0 bg-white/20 transition-all duration-200"
-                    style={{ width: `${uploadProgress}%` }}
-                  />
-                )}
-                <span className="relative z-10 flex items-center gap-1.5">
-                  {saved
-                    ? <><CheckCircleIcon className="w-4 h-4" /> Saved!</>
-                    : saving
-                      ? uploadProgress > 0
-                        ? `Uploading ${uploadProgress}%`
-                        : 'Saving...'
-                      : <><PaperAirplaneIcon className="w-4 h-4" /> Save Changes</>
-                  }
-                </span>
-              </motion.button>
-            </div>
+            {/* Row 2: word count – sits cleanly below, indented past the back button */}
+            {wordCount > 0 && (
+              <p className="text-xs text-gray-400 mt-1.5 pl-11">
+                {wordCount} words · {readTime} min read
+              </p>
+            )}
           </div>
 
           {/* Error banner */}
