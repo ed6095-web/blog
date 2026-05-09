@@ -1,24 +1,30 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { doc, getDoc, updateDoc, increment, collection, addDoc, getDocs, query, orderBy, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore';
+import {
+  doc, getDoc, updateDoc, deleteDoc, increment,
+  collection, addDoc, getDocs, query, orderBy,
+  serverTimestamp, arrayUnion, arrayRemove,
+  setDoc,
+} from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import Navbar from '../../components/Navbar';
 import Footer from '../../components/Footer';
 import Avatar from '../../components/Avatar';
+import MediaCarousel from '../../components/MediaCarousel';
 import {
-  HeartIcon,
-  ChatBubbleLeftIcon,
-  BookmarkIcon,
-  ShareIcon,
-  ClockIcon,
-  ArrowLeftIcon,
-  PaperAirplaneIcon,
+  HeartIcon, ChatBubbleLeftIcon, BookmarkIcon, ShareIcon,
+  ClockIcon, ArrowLeftIcon, PaperAirplaneIcon,
+  TrashIcon, PencilIcon, ArrowUturnLeftIcon,
+  ChevronDownIcon, ChevronUpIcon,
 } from '@heroicons/react/24/outline';
-import { HeartIcon as HeartSolid, BookmarkIcon as BookmarkSolid } from '@heroicons/react/24/solid';
+import {
+  HeartIcon as HeartSolid,
+  BookmarkIcon as BookmarkSolid,
+} from '@heroicons/react/24/solid';
 import { format } from 'date-fns';
 
 function estimateReadingTime(content = '') {
@@ -26,89 +32,233 @@ function estimateReadingTime(content = '') {
   return Math.max(1, Math.round(words / 200));
 }
 
+function formatDate(ts) {
+  if (!ts) return '';
+  try {
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return format(d, 'MMM d, yyyy');
+  } catch { return ''; }
+}
+
+// ── Single Comment with nested Reply ──────────────────────────────────────
+function CommentItem({ comment, postId, user, depth = 0 }) {
+  const [showReplyInput, setShowReplyInput] = useState(false);
+  const [replyText, setReplyText]           = useState('');
+  const [submitting, setSubmitting]         = useState(false);
+  const [replies, setReplies]               = useState([]);
+  const [showReplies, setShowReplies]       = useState(false);
+  const [replyCount, setReplyCount]         = useState(comment.replyCount || 0);
+
+  const handleSubmitReply = async () => {
+    if (!user || !replyText.trim()) return;
+    setSubmitting(true);
+    try {
+      const replyData = {
+        text: replyText.trim(),
+        authorId: user.uid,
+        authorName: user.displayName || user.email,
+        authorPhoto: user.photoURL || '',
+        createdAt: serverTimestamp(),
+      };
+      await addDoc(
+        collection(db, 'posts', postId, 'comments', comment.id, 'replies'),
+        replyData
+      );
+      // Increment reply count on the parent comment
+      await updateDoc(doc(db, 'posts', postId, 'comments', comment.id), {
+        replyCount: increment(1),
+      });
+      setReplies(prev => [
+        { id: Date.now().toString(), ...replyData, createdAt: { toDate: () => new Date() } },
+        ...prev,
+      ]);
+      setReplyCount(c => c + 1);
+      setShowReplies(true);
+      setReplyText('');
+      setShowReplyInput(false);
+    } catch (e) { console.error(e); } finally { setSubmitting(false); }
+  };
+
+  const loadReplies = async () => {
+    if (showReplies) { setShowReplies(false); return; }
+    try {
+      const q = query(
+        collection(db, 'posts', postId, 'comments', comment.id, 'replies'),
+        orderBy('createdAt', 'asc')
+      );
+      const snap = await getDocs(q);
+      setReplies(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setShowReplies(true);
+    } catch (e) { console.error(e); }
+  };
+
+  return (
+    <div className={`flex gap-3 ${depth > 0 ? 'pl-10 sm:pl-12' : ''}`}>
+      <Avatar url={comment.authorPhoto} name={comment.authorName} size={32} className="flex-shrink-0 mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <div className="bg-gray-50 dark:bg-slate-800/60 rounded-2xl px-4 py-3">
+          <div className="flex items-baseline gap-2 mb-1">
+            <span className="text-sm font-semibold text-gray-900 dark:text-white">{comment.authorName || 'Anonymous'}</span>
+            <span className="text-xs text-gray-400">{formatDate(comment.createdAt)}</span>
+          </div>
+          <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{comment.text}</p>
+        </div>
+
+        {/* Actions row */}
+        <div className="flex items-center gap-4 mt-1.5 px-1">
+          {user && depth === 0 && (
+            <button
+              onClick={() => setShowReplyInput(v => !v)}
+              className="flex items-center gap-1 text-xs text-gray-400 hover:text-wavvy-primary2 transition-colors"
+            >
+              <ArrowUturnLeftIcon className="w-3.5 h-3.5" />
+              Reply
+            </button>
+          )}
+          {replyCount > 0 && depth === 0 && (
+            <button
+              onClick={loadReplies}
+              className="flex items-center gap-1 text-xs text-wavvy-primary2 hover:opacity-80 transition-opacity"
+            >
+              {showReplies ? <ChevronUpIcon className="w-3.5 h-3.5" /> : <ChevronDownIcon className="w-3.5 h-3.5" />}
+              {showReplies ? 'Hide' : `View ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}`}
+            </button>
+          )}
+        </div>
+
+        {/* Reply input */}
+        <AnimatePresence>
+          {showReplyInput && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mt-2 flex gap-2 items-center"
+            >
+              <Avatar url={user.photoURL} name={user.displayName} size={28} className="flex-shrink-0" />
+              <input
+                autoFocus
+                value={replyText}
+                onChange={e => setReplyText(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSubmitReply()}
+                placeholder={`Reply to ${comment.authorName}...`}
+                className="flex-1 input-base text-sm py-1.5"
+              />
+              <button
+                onClick={handleSubmitReply}
+                disabled={!replyText.trim() || submitting}
+                className="btn-primary px-2.5 py-1.5 disabled:opacity-50"
+              >
+                <PaperAirplaneIcon className="w-4 h-4" />
+              </button>
+              <button onClick={() => setShowReplyInput(false)} className="text-gray-400 hover:text-white text-xs">Cancel</button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Nested replies */}
+        <AnimatePresence>
+          {showReplies && replies.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mt-3 space-y-3"
+            >
+              {replies.map(reply => (
+                <CommentItem key={reply.id} comment={reply} postId={postId} user={user} depth={1} />
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Post Page ─────────────────────────────────────────────────────────
 export default function PostPage() {
-  const router = useRouter();
-  const { id } = router.query;
+  const router   = useRouter();
+  const { id }   = router.query;
   const { user } = useAuth();
-  const [post, setPost] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [liked, setLiked] = useState(false);
-  const [bookmarked, setBookmarked] = useState(false);
-  const [likeCount, setLikeCount] = useState(0);
-  const [comments, setComments] = useState([]);
-  const [commentText, setCommentText] = useState('');
-  const [submittingComment, setSubmittingComment] = useState(false);
-  const [readProgress, setReadProgress] = useState(0);
-  const [isLiking, setIsLiking] = useState(false);
-  const [authorPhoto, setAuthorPhoto] = useState('');
+
+  const [post, setPost]                       = useState(null);
+  const [loading, setLoading]                 = useState(true);
+  const [liked, setLiked]                     = useState(false);
+  const [bookmarked, setBookmarked]           = useState(false);
+  const [likeCount, setLikeCount]             = useState(0);
+  const [comments, setComments]               = useState([]);
+  const [commentText, setCommentText]         = useState('');
+  const [submittingComment, setSubmitting]    = useState(false);
+  const [readProgress, setReadProgress]       = useState(0);
+  const [isLiking, setIsLiking]               = useState(false);
+  const [authorPhoto, setAuthorPhoto]         = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting]               = useState(false);
 
   // Reading progress bar
   useEffect(() => {
-    const handleScroll = () => {
+    const onScroll = () => {
       const el = document.documentElement;
-      const scrollTop = el.scrollTop || document.body.scrollTop;
-      const scrollHeight = el.scrollHeight - el.clientHeight;
-      const progress = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
-      setReadProgress(Math.min(100, progress));
+      const prog = el.scrollHeight - el.clientHeight;
+      setReadProgress(prog > 0 ? Math.min(100, (el.scrollTop / prog) * 100) : 0);
     };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  // Fetch post
   useEffect(() => {
     if (!id) return;
-    const fetchPost = async () => {
+    const fetch = async () => {
       try {
-        const ref = doc(db, 'posts', id);
+        const ref  = doc(db, 'posts', id);
         const snap = await getDoc(ref);
         if (snap.exists()) {
           const data = { id: snap.id, ...snap.data() };
           setPost(data);
           setLikeCount(data.likedBy?.length || data.likes || 0);
-          
-          if (user && data.likedBy?.includes(user.uid)) {
-            setLiked(true);
-          } else {
-            setLiked(false);
-          }
+          if (user && data.likedBy?.includes(user.uid)) setLiked(true);
 
-          // Fetch real author profile photo
+          // Fetch author profile
           if (data.authorId) {
-            const authorSnap = await getDoc(doc(db, 'profiles', data.authorId));
-            if (authorSnap.exists()) {
-              const profileData = authorSnap.data();
-              setAuthorPhoto(profileData.photoURL || data.authorPhoto || '');
-              // Update post author name if it changed in profile
-              if (profileData.displayName) {
-                setPost(prev => ({ ...prev, authorName: profileData.displayName }));
-              }
+            const aSnap = await getDoc(doc(db, 'profiles', data.authorId));
+            if (aSnap.exists()) {
+              const pd = aSnap.data();
+              setAuthorPhoto(pd.photoURL || data.authorPhoto || '');
+              if (pd.displayName) setPost(p => ({ ...p, authorName: pd.displayName }));
             } else {
               setAuthorPhoto(data.authorPhoto || '');
             }
           }
-
-          // Increment views
           await updateDoc(ref, { views: increment(1) });
         }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
+      } catch (e) { console.error(e); } finally { setLoading(false); }
     };
-    fetchPost();
+    fetch();
   }, [id, user]);
 
+  // Fetch bookmark state
+  useEffect(() => {
+    if (!user || !id) return;
+    const check = async () => {
+      try {
+        const snap = await getDoc(doc(db, 'profiles', user.uid));
+        if (snap.exists()) setBookmarked((snap.data().bookmarks || []).includes(id));
+      } catch (e) { console.error(e); }
+    };
+    check();
+  }, [user, id]);
+
+  // Fetch comments
   useEffect(() => {
     if (!id) return;
     const fetchComments = async () => {
       try {
-        const q = query(collection(db, 'posts', id, 'comments'), orderBy('createdAt', 'desc'));
+        const q    = query(collection(db, 'posts', id, 'comments'), orderBy('createdAt', 'desc'));
         const snap = await getDocs(q);
         setComments(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      } catch (e) {
-        console.error(e);
-      }
+      } catch (e) { console.error(e); }
     };
     fetchComments();
   }, [id]);
@@ -116,32 +266,36 @@ export default function PostPage() {
   const handleLike = async () => {
     if (!user) { router.push('/auth/login'); return; }
     if (isLiking) return;
-    
     setIsLiking(true);
     const newLiked = !liked;
-    // Optimistic UI update
     setLiked(newLiked);
     setLikeCount(c => newLiked ? c + 1 : c - 1);
-    
     try {
-      const postRef = doc(db, 'posts', id);
-      await updateDoc(postRef, { 
+      await updateDoc(doc(db, 'posts', id), {
         likedBy: newLiked ? arrayUnion(user.uid) : arrayRemove(user.uid),
-        likes: increment(newLiked ? 1 : -1)
+        likes: increment(newLiked ? 1 : -1),
       });
-    } catch (e) { 
-      console.error("Error liking post:", e);
+    } catch (e) {
       setLiked(!newLiked);
       setLikeCount(c => newLiked ? c - 1 : c + 1);
-    } finally {
-      setIsLiking(false);
-    }
+    } finally { setIsLiking(false); }
+  };
+
+  const handleBookmark = async () => {
+    if (!user) { router.push('/auth/login'); return; }
+    const was = bookmarked;
+    setBookmarked(!was);
+    try {
+      await updateDoc(doc(db, 'profiles', user.uid), {
+        bookmarks: was ? arrayRemove(id) : arrayUnion(id),
+      });
+    } catch (e) { setBookmarked(was); console.error(e); }
   };
 
   const handleComment = async () => {
     if (!user) { router.push('/auth/login'); return; }
     if (!commentText.trim()) return;
-    setSubmittingComment(true);
+    setSubmitting(true);
     try {
       const newComment = {
         text: commentText.trim(),
@@ -149,24 +303,30 @@ export default function PostPage() {
         authorName: user.displayName || user.email,
         authorPhoto: user.photoURL || '',
         createdAt: serverTimestamp(),
+        replyCount: 0,
       };
-      await addDoc(collection(db, 'posts', id, 'comments'), newComment);
-      setComments(prev => [{ id: Date.now().toString(), ...newComment, createdAt: { toDate: () => new Date() } }, ...prev]);
+      const docRef = await addDoc(collection(db, 'posts', id, 'comments'), newComment);
+      setComments(prev => [{ id: docRef.id, ...newComment, createdAt: { toDate: () => new Date() } }, ...prev]);
       setCommentText('');
       await updateDoc(doc(db, 'posts', id), { commentCount: increment(1) });
-    } catch (e) { console.error(e); } finally {
-      setSubmittingComment(false);
-    }
+    } catch (e) { console.error(e); } finally { setSubmitting(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!user || user.uid !== post.authorId) return;
+    setDeleting(true);
+    try {
+      await deleteDoc(doc(db, 'posts', id));
+      router.push('/');
+    } catch (e) { console.error(e); setDeleting(false); }
   };
 
   const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({ title: post?.title, url: window.location.href });
-    } else {
-      navigator.clipboard.writeText(window.location.href);
-    }
+    if (navigator.share) navigator.share({ title: post?.title, url: window.location.href });
+    else navigator.clipboard.writeText(window.location.href);
   };
 
+  // ── Render states ──────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen bg-wavvy-bgDark">
@@ -174,9 +334,7 @@ export default function PostPage() {
         <div className="max-w-3xl mx-auto px-4 py-20 space-y-6">
           <div className="w-2/3 h-10 skeleton" />
           <div className="w-full h-64 skeleton rounded-2xl" />
-          <div className="space-y-3">
-            {[1,2,3,4,5].map(i => <div key={i} className="w-full h-4 skeleton" />)}
-          </div>
+          {[1,2,3,4,5].map(i => <div key={i} className="w-full h-4 skeleton" />)}
         </div>
       </div>
     );
@@ -187,16 +345,15 @@ export default function PostPage() {
       <div className="min-h-screen bg-wavvy-bgDark flex items-center justify-center">
         <div className="text-center">
           <h2 className="font-grotesk text-2xl font-bold text-white mb-3">Post not found</h2>
-          <Link href="/">
-            <button className="btn-primary px-6 py-3">Go home</button>
-          </Link>
+          <Link href="/"><button className="btn-primary px-6 py-3">Go home</button></Link>
         </div>
       </div>
     );
   }
 
-  const readTime = estimateReadingTime(post.content);
-  const publishedDate = post.createdAt?.toDate ? format(post.createdAt.toDate(), 'MMMM d, yyyy') : '';
+  const readTime      = estimateReadingTime(post.content);
+  const publishedDate = formatDate(post.createdAt);
+  const isAuthor      = user?.uid === post.authorId;
 
   return (
     <>
@@ -209,22 +366,83 @@ export default function PostPage() {
       </Head>
 
       {/* Reading progress bar */}
-      <div
-        id="reading-progress"
-        style={{ width: `${readProgress}%` }}
-      />
+      <div id="reading-progress" style={{ width: `${readProgress}%` }} />
 
       <div className="min-h-screen bg-wavvy-bgLight dark:bg-wavvy-bgDark">
         <Navbar />
 
         <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
-          {/* Back */}
-          <Link href="/">
-            <button className="flex items-center gap-2 text-sm text-gray-400 hover:text-wavvy-primary2 transition-colors mb-8">
-              <ArrowLeftIcon className="w-4 h-4" />
-              Back to feed
-            </button>
-          </Link>
+
+          {/* Back + Author actions */}
+          <div className="flex items-center justify-between mb-8">
+            <Link href="/">
+              <button className="flex items-center gap-2 text-sm text-gray-400 hover:text-wavvy-primary2 transition-colors">
+                <ArrowLeftIcon className="w-4 h-4" />
+                Back to feed
+              </button>
+            </Link>
+
+            {/* Edit / Delete (only author) */}
+            {isAuthor && (
+              <div className="flex items-center gap-2">
+                <Link href={`/post/edit/${id}`}>
+                  <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400 hover:text-wavvy-primary2 transition-colors">
+                    <PencilIcon className="w-3.5 h-3.5" />
+                    Edit
+                  </button>
+                </Link>
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+                >
+                  <TrashIcon className="w-3.5 h-3.5" />
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Delete confirmation modal */}
+          <AnimatePresence>
+            {showDeleteConfirm && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+                onClick={() => setShowDeleteConfirm(false)}
+              >
+                <motion.div
+                  initial={{ scale: 0.9, y: 20 }}
+                  animate={{ scale: 1, y: 0 }}
+                  exit={{ scale: 0.9, y: 20 }}
+                  className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-sm w-full shadow-2xl"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
+                    <TrashIcon className="w-6 h-6 text-red-400" />
+                  </div>
+                  <h3 className="font-grotesk text-lg font-bold text-gray-900 dark:text-white text-center mb-2">Delete Post?</h3>
+                  <p className="text-sm text-gray-400 text-center mb-6">This action cannot be undone. Your post will be permanently deleted.</p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="flex-1 btn-ghost py-2.5 text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition-colors disabled:opacity-60"
+                    >
+                      {deleting ? 'Deleting...' : 'Delete'}
+                    </button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Category */}
           {post.category && (
@@ -238,68 +456,76 @@ export default function PostPage() {
             {post.title}
           </h1>
 
-          {/* Author + Meta */}
-          <div className="flex items-center gap-4 mb-8 pb-8 border-b border-gray-200 dark:border-white/[0.06]">
-            <Link href={`/user/${post.authorId}`}>
-              <Avatar 
-                url={authorPhoto} 
-                name={post.authorName} 
-                size={48} 
-                className="ring-2 ring-wavvy-primary2/20 hover:ring-wavvy-primary transition-all"
+          {/* ── Author + Meta + Actions row ── */}
+          <div className="flex flex-wrap items-center gap-4 mb-8 pb-8 border-b border-gray-200 dark:border-white/[0.06]">
+            {/* Author info */}
+            <Link href={`/user/${post.authorId}`} className="flex items-center gap-3 flex-1 min-w-0">
+              <Avatar
+                url={authorPhoto}
+                name={post.authorName}
+                size={44}
+                className="ring-2 ring-wavvy-primary2/20 flex-shrink-0"
               />
-            </Link>
-            <div className="flex-1">
-              <Link href={`/user/${post.authorId}`} className="font-semibold text-gray-900 dark:text-white hover:text-wavvy-primary transition-colors">
-                {post.authorName || 'Anonymous'}
-              </Link>
-              <div className="flex items-center gap-3 text-sm text-gray-400 mt-1">
-                <span>{publishedDate}</span>
-                <span>·</span>
-                <span className="flex items-center gap-1">
-                  <ClockIcon className="w-3.5 h-3.5" />
-                  {readTime} min read
-                </span>
+              <div className="min-w-0">
+                <p className="font-semibold text-gray-900 dark:text-white text-sm hover:text-wavvy-primary transition-colors truncate">
+                  {post.authorName || 'Anonymous'}
+                </p>
+                {/* Clean meta line */}
+                <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-0.5 flex-wrap">
+                  {publishedDate && <span>{publishedDate}</span>}
+                  {publishedDate && <span className="opacity-50">·</span>}
+                  <span className="flex items-center gap-0.5">
+                    <ClockIcon className="w-3 h-3" />
+                    {readTime} min read
+                  </span>
+                </div>
               </div>
-            </div>
+            </Link>
 
-            {/* Floating actions */}
-            <div className="flex items-center gap-2">
+            {/* Action buttons */}
+            <div className="flex items-center gap-2 flex-shrink-0">
               <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
+                whileHover={{ scale: 1.07 }} whileTap={{ scale: 0.93 }}
                 onClick={handleLike}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm transition-all ${
-                  liked ? 'bg-wavvy-accent/15 text-wavvy-accent' : 'bg-gray-100 dark:bg-slate-800 text-gray-500'
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+                  liked ? 'bg-wavvy-accent/15 text-wavvy-accent' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 hover:text-wavvy-accent'
                 }`}
               >
                 {liked ? <HeartSolid className="w-4 h-4" /> : <HeartIcon className="w-4 h-4" />}
-                {likeCount}
+                <span>{likeCount}</span>
               </motion.button>
+
               <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setBookmarked(v => !v)}
-                className={`p-2 rounded-xl text-sm transition-all ${
-                  bookmarked ? 'bg-wavvy-primary/15 text-wavvy-primary2' : 'bg-gray-100 dark:bg-slate-800 text-gray-500'
+                whileHover={{ scale: 1.07 }} whileTap={{ scale: 0.93 }}
+                onClick={handleBookmark}
+                className={`p-2 rounded-xl transition-all ${
+                  bookmarked ? 'bg-wavvy-primary/15 text-wavvy-primary2' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 hover:text-wavvy-primary2'
                 }`}
+                aria-label="Bookmark"
               >
                 {bookmarked ? <BookmarkSolid className="w-4 h-4" /> : <BookmarkIcon className="w-4 h-4" />}
               </motion.button>
+
               <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
+                whileHover={{ scale: 1.07 }} whileTap={{ scale: 0.93 }}
                 onClick={handleShare}
                 className="p-2 rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-500 hover:text-wavvy-accent2 transition-colors"
+                aria-label="Share"
               >
                 <ShareIcon className="w-4 h-4" />
               </motion.button>
             </div>
           </div>
 
-          {/* Cover image */}
-          {post.coverImage && (
-            <div className="rounded-2xl overflow-hidden mb-10 aspect-[16/8]">
-              <img src={post.coverImage} alt={post.title} className="w-full h-full object-cover" />
+          {/* Media carousel */}
+          {(post.mediaItems?.length > 0 || post.coverImage) && (
+            <div className="rounded-2xl overflow-hidden mb-10">
+              <MediaCarousel
+                mediaItems={post.mediaItems}
+                coverImage={post.coverImage}
+                aspectRatio="aspect-[16/9]"
+                showCounter
+              />
             </div>
           )}
 
@@ -321,22 +547,17 @@ export default function PostPage() {
             </div>
           )}
 
-          {/* Comment Section */}
+          {/* ── Comment Section ── */}
           <section className="space-y-6">
             <h3 className="font-grotesk text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <ChatBubbleLeftIcon className="w-5 h-5" />
               Discussion ({comments.length})
             </h3>
 
-            {/* Comment input */}
+            {/* New comment input */}
             {user ? (
               <div className="flex gap-3">
-                {user.photoURL
-                  ? <img src={user.photoURL} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
-                  : <div className="w-9 h-9 rounded-full bg-wavvy-gradient flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                      {(user.displayName || user.email || 'U')[0].toUpperCase()}
-                    </div>
-                }
+                <Avatar url={user.photoURL} name={user.displayName} size={36} className="flex-shrink-0 mt-0.5" />
                 <div className="flex-1 flex gap-2">
                   <input
                     type="text"
@@ -347,8 +568,7 @@ export default function PostPage() {
                     className="flex-1 input-base text-sm"
                   />
                   <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
+                    whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                     onClick={handleComment}
                     disabled={!commentText.trim() || submittingComment}
                     className="btn-primary px-3 py-2 disabled:opacity-50"
@@ -364,36 +584,22 @@ export default function PostPage() {
             )}
 
             {/* Comments list */}
-            <AnimatePresence>
-              {comments.map(comment => (
-                <motion.div
-                  key={comment.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex gap-3"
-                >
-                  {comment.authorPhoto
-                    ? <img src={comment.authorPhoto} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-                    : <div className="w-8 h-8 rounded-full bg-wavvy-gradient flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                        {(comment.authorName || 'U')[0].toUpperCase()}
-                      </div>
-                  }
-                  <div className="flex-1 bg-gray-50 dark:bg-slate-800/50 rounded-xl px-4 py-3">
-                    <div className="flex items-baseline gap-2 mb-1">
-                      <span className="text-sm font-semibold text-gray-900 dark:text-white">{comment.authorName || 'Anonymous'}</span>
-                      <span className="text-xs text-gray-400">
-                        {comment.createdAt?.toDate ? format(comment.createdAt.toDate(), 'MMM d') : 'Just now'}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-700 dark:text-gray-300">{comment.text}</p>
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-
-            {comments.length === 0 && (
-              <p className="text-sm text-gray-400 text-center py-6">No comments yet. Start the conversation!</p>
-            )}
+            <div className="space-y-5">
+              <AnimatePresence>
+                {comments.map(comment => (
+                  <motion.div
+                    key={comment.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                  >
+                    <CommentItem comment={comment} postId={id} user={user} depth={0} />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+              {comments.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-6">No comments yet. Start the conversation!</p>
+              )}
+            </div>
           </section>
         </main>
 
